@@ -10,6 +10,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@shipsafe/adapters": "workspace:*",
+    "@shipsafe/sandbox": "workspace:*",
+    "@shipsafe/scoring": "workspace:*",
     "@shipsafe/shared": "workspace:*",
     "next": "^15.0.0",
     "react": "^18.3.1",

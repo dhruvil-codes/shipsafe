@@ -54,6 +54,19 @@ DOMAIN_RE = re.compile(
     r"(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*\.?$"
 )
 
+# Preferred locations first: a pip-installed `httpx` stub can shadow the
+# ProjectDiscovery binary on PATH, and `subzy` lives in ~/go/bin.
+TOOL_SEARCH_DIRS = ["/usr/local/bin", os.path.expanduser("~/go/bin")]
+
+
+def resolve_tool(name: str) -> str | None:
+    """Absolute path of a tool binary, or None when not installed."""
+    for directory in TOOL_SEARCH_DIRS:
+        candidate = os.path.join(directory, name)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return shutil.which(name)
+
 
 def utcnow() -> str:
     return (
@@ -134,8 +147,9 @@ def missing_section(tool: str, argv: list, detail: str) -> dict:
 # ------------------------------------------------------------- subfinder ---
 def stage_subfinder(domain: str, tmpdir: str) -> tuple:
     out_path = os.path.join(tmpdir, "subdomains.txt")
-    argv = ["subfinder", "-d", domain, "-silent", "-o", out_path]
-    if shutil.which("subfinder") is None:
+    binary = resolve_tool("subfinder")
+    argv = [binary or "subfinder", "-d", domain, "-silent", "-o", out_path]
+    if binary is None:
         return missing_section("subfinder", argv, "binary not installed"), []
     res = run_cmd(argv, TIMEOUTS["subfinder"])
     subdomains: list = []
@@ -162,14 +176,17 @@ def stage_subfinder(domain: str, tmpdir: str) -> tuple:
 
 # ------------------------------------------------------------------ httpx ---
 def stage_httpx(subdomains: list, tmpdir: str) -> dict:
+    total = len(subdomains)
+    capped = subdomains[:MAX_OSINT_TARGETS]
     targets_path = os.path.join(tmpdir, "httpx_targets.txt")
     with open(targets_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(subdomains) + ("\n" if subdomains else ""))
+        fh.write("\n".join(capped) + ("\n" if capped else ""))
+    binary = resolve_tool("httpx")
     argv = [
-        "httpx", "-l", targets_path, "-silent", "-json",
+        binary or "httpx", "-l", targets_path, "-silent", "-json",
         "-tech-detect", "-status-code", "-title",
     ]
-    if shutil.which("httpx") is None:
+    if binary is None:
         return missing_section("httpx", argv, "binary not installed")
     res = run_cmd(argv, TIMEOUTS["httpx"])
     hosts: list = []
@@ -189,6 +206,8 @@ def stage_httpx(subdomains: list, tmpdir: str) -> dict:
         "returncode": res["returncode"],
         "hosts": hosts,
         "count": len(hosts),
+        "totalSubdomains": total,
+        "truncated": total > len(capped),
         "latencyMs": res["latencyMs"],
     }
     if not res["ok"] and not hosts:
@@ -200,11 +219,14 @@ def stage_httpx(subdomains: list, tmpdir: str) -> dict:
 
 # ------------------------------------------------------------------ subzy ---
 def stage_subzy(subdomains: list, tmpdir: str) -> dict:
+    total = len(subdomains)
+    capped = subdomains[:MAX_OSINT_TARGETS]
     targets_path = os.path.join(tmpdir, "subzy_targets.txt")
     with open(targets_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(subdomains) + ("\n" if subdomains else ""))
-    argv = ["subzy", "run", "--targets", targets_path, "--hide_fails"]
-    if shutil.which("subzy") is None:
+        fh.write("\n".join(capped) + ("\n" if capped else ""))
+    binary = resolve_tool("subzy")
+    argv = [binary or "subzy", "run", "--targets", targets_path, "--hide_fails"]
+    if binary is None:
         return missing_section("subzy", argv, "binary not installed")
     res = run_cmd(argv, TIMEOUTS["subzy"])
     raw = (res["stdout"] or "").strip()
@@ -226,6 +248,8 @@ def stage_subzy(subdomains: list, tmpdir: str) -> dict:
         "returncode": res["returncode"],
         "results": results,
         "raw": raw[:8000],
+        "totalSubdomains": total,
+        "truncated": total > len(capped),
         "latencyMs": res["latencyMs"],
     }
     if not res["ok"]:
@@ -235,8 +259,9 @@ def stage_subzy(subdomains: list, tmpdir: str) -> dict:
 
 # -------------------------------------------------------------- checkdmarc ---
 def stage_checkdmarc(domain: str) -> dict:
-    argv = ["checkdmarc", "-f", "json", domain]
-    if shutil.which("checkdmarc") is None:
+    binary = resolve_tool("checkdmarc")
+    argv = [binary or "checkdmarc", "-f", "json", domain]
+    if binary is None:
         return missing_section("checkdmarc", argv, "binary not installed")
     res = run_cmd(argv, TIMEOUTS["checkdmarc"])
     parsed = None
@@ -248,7 +273,7 @@ def stage_checkdmarc(domain: str) -> dict:
         except json.JSONDecodeError:
             # Flag drift across versions: retry with the bare domain form and
             # parse whatever comes back as JSON.
-            retry = run_cmd(["checkdmarc", domain], TIMEOUTS["checkdmarc"])
+            retry = run_cmd([binary or "checkdmarc", domain], TIMEOUTS["checkdmarc"])
             try:
                 obj = json.loads((retry["stdout"] or "").strip())
                 parsed = obj if isinstance(obj, dict) else {"output": obj}
@@ -272,21 +297,27 @@ def stage_checkdmarc(domain: str) -> dict:
 
 # ------------------------------------------------------------------ whois ---
 WHOIS_PATTERNS = {
-    "registrar": re.compile(r"^registrar:\s*(.+)$", re.I | re.M),
+    "registrar": re.compile(r"^\s*registrar:\s*(.+)$", re.I | re.M),
     "creationDate": re.compile(
-        r"^(creation date|created|registered on|registration time):\s*(.+)$", re.I | re.M
+        r"^\s*(creation date|created|registered on|registration time):\s*(.+)$", re.I | re.M
     ),
     "expiryDate": re.compile(
-        r"^(registry expiry date|registrar registration expiration date|"
+        r"^\s*(registry expiry date|registrar registration expiration date|"
         r"expiry date|expires|expiration date|expire|paid-till):\s*(.+)$",
         re.I | re.M,
     ),
 }
 
+# Upper bound on hosts fed to httpx/subzy: certificate-transparency sources
+# can return tens of thousands of (often bogus) names for large domains.
+# The full count is preserved in evidence (`totalSubdomains`, `truncated`).
+MAX_OSINT_TARGETS = 500
+
 
 def stage_whois(domain: str) -> dict:
-    argv = ["whois", domain]
-    if shutil.which("whois") is None:
+    binary = resolve_tool("whois")
+    argv = [binary or "whois", domain]
+    if binary is None:
         return missing_section("whois", argv, "binary not installed")
     res = run_cmd(argv, TIMEOUTS["whois"])
     text = res["stdout"] or ""

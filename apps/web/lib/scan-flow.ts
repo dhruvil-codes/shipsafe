@@ -85,6 +85,8 @@ export type StreamEvent =
   | { kind: "sandbox"; sandboxId: string }
   | { kind: "vmstatus"; status: string }
   | { kind: "log"; stage: string; message: string }
+  | { kind: "stdout"; text: string }
+  | { kind: "error"; message: string }
   | { kind: "result"; status: string; score: number | null; coverage: number | null; findingsCount: number }
   | { kind: "done" }
   | { kind: "line"; text: string };
@@ -111,6 +113,12 @@ export function parseStreamPayload(data: string): StreamEvent {
         stage: String(obj["stage"] ?? ""),
         message: String(obj["message"] ?? ""),
       };
+    }
+    if (obj["type"] === "stdout") {
+      return { kind: "stdout", text: String(obj["text"] ?? "") };
+    }
+    if (obj["type"] === "error") {
+      return { kind: "error", message: String(obj["message"] ?? "Unknown VM error") };
     }
     if (obj["type"] === "result") {
       const num = (v: unknown): number | null =>
@@ -233,25 +241,4 @@ export function buildAiFixPrompt(
     })
     .join("\n\n");
   return `${head}\n\n${items}\n\nPlease generate the exact configuration code for my project to resolve these issues.`;
-}
-
-/** Clearly-labeled offline-demo OSINT summary for a target (used only when the API is unreachable). */
-export function buildDemoOsint(target: string): OsintSummary {
-  let host = target;
-  try {
-    host = new URL(target).hostname;
-  } catch {
-    // keep raw target
-  }
-  return {
-    subdomains: [
-      { host, status: 200, tech: "nginx" },
-      { host: `www.${host}`, status: 200, tech: "nginx" },
-      { host: `staging.${host}`, status: 200, tech: "nginx + react" },
-      { host: `dev.${host}`, status: 403, tech: "nginx" },
-    ],
-    dmarc: { status: "fail", detail: "No DMARC record published (p=reject missing)" },
-    spf: { status: "pass", detail: "SPF record present (v=spf1 -all)" },
-    whois: { registrar: "Example Registrar", expiry: "2027-03-14", privacy: "protected" },
-  };
 }

@@ -103,11 +103,21 @@ def check_tls(target: str) -> dict:
         except Exception as exc:  # noqa: BLE001 - record, never crash
             evidence["expiryParseError"] = str(exc)
         tr["checksAttempted"] = 3  # validity, expiry, cipher
-        weak = str(evidence.get("cipher", {}).get("name", ""))
-        status = "passed"
-        if re.search(r"RC4|DES|3DES|MD5|NULL|EXPORT|anon", weak, re.I):
-            status = "failed"
-        return finish_tool(tr, status, evidence)
+        # Adapter-contract shapes (packages/adapters README): cert validity,
+        # negotiated protocol, and cipher suite for the TLS normalizer.
+        peer = evidence.get("peerCert") if isinstance(evidence.get("peerCert"), dict) else {}
+        evidence["cert"] = {
+            "subject": peer.get("subject"),
+            "issuer": peer.get("issuer"),
+            "validTo": evidence.get("notAfter"),
+        }
+        negotiated = evidence.get("protocolNegotiated")
+        evidence["protocols"] = [negotiated] if negotiated else []
+        cipher_name = evidence.get("cipher", {}).get("name") if isinstance(evidence.get("cipher"), dict) else None
+        evidence["ciphers"] = [{"name": cipher_name}] if cipher_name else []
+        # Status is the execution outcome (the tool ran), never the verdict:
+        # weaknesses live in evidence so the normalizer can map them.
+        return finish_tool(tr, "passed", evidence)
     except Exception as exc:  # noqa: BLE001 - partial failure is a finding, not a crash
         evidence["exception"] = f"{type(exc).__name__}: {exc}"
         # No TLS (e.g. plain-http target or unreachable host): record skip, not pass.
@@ -168,9 +178,12 @@ def check_headers(target: str) -> dict:
         evidence["bodySnippet"] = body_snippet[:500]
         missing = [h for h in SECURITY_HEADERS if h not in lowered]
         evidence["missing"] = missing
+        # Adapter-contract shape: flat header map under `headers`.
+        evidence["headers"] = lowered
         tr["checksAttempted"] = len(SECURITY_HEADERS) + 3  # headers + cors + cookies + banner
-        status_out = "passed" if not missing else "failed"
-        return finish_tool(tr, status_out, evidence)
+        # Status is the execution outcome (the fetch ran), never the verdict:
+        # missing headers live in evidence so the normalizer can map them.
+        return finish_tool(tr, "passed", evidence)
     except Exception as exc:  # noqa: BLE001
         evidence["exception"] = f"{type(exc).__name__}: {exc}"
         tr["checksAttempted"] = 0
@@ -212,6 +225,8 @@ def check_sensitive_files(target: str) -> dict:
                         "path": path,
                         "url": url,
                         "httpStatus": code,
+                        # Adapter-contract alias: the normalizer reads `status`.
+                        "status": code,
                         "exposed": exposed,
                         "bodySnippet": snippet[:200],
                         "latencyMs": int((time.monotonic() - started) * 1000),
@@ -219,12 +234,11 @@ def check_sensitive_files(target: str) -> dict:
                 )
             except Exception as exc:  # noqa: BLE001 - one failed probe must not kill the tool
                 evidence["probes"].append(
-                    {"path": path, "url": url, "httpStatus": None, "exposed": False, "error": str(exc)}
+                    {"path": path, "url": url, "httpStatus": None, "status": None, "exposed": False, "error": str(exc)}
                 )
         tr["checksAttempted"] = len(SENSITIVE_PATHS)
-        exposed_any = [p for p in evidence["probes"] if p.get("exposed")]
-        status_out = "failed" if exposed_any else "passed"
-        return finish_tool(tr, status_out, evidence)
+        # Status is the execution outcome (probes completed), never the verdict.
+        return finish_tool(tr, "passed", evidence)
     except Exception as exc:  # noqa: BLE001
         evidence["exception"] = f"{type(exc).__name__}: {exc}"
         tr["checksAttempted"] = 0
@@ -268,9 +282,14 @@ def check_ports(target: str) -> dict:
                 }
             )
         tr["checksAttempted"] = len(PROBE_PORTS)
-        risky = [p for p in evidence["probes"] if p.get("open") and p.get("port") in (22, 3306, 6379)]
-        status_out = "failed" if risky else "passed"
-        return finish_tool(tr, status_out, evidence)
+        # Adapter-contract shape for the port normalizer (additive).
+        evidence["openPorts"] = [
+            {"port": p.get("port"), "state": "open" if p.get("open") else "closed"}
+            for p in evidence["probes"]
+            if isinstance(p.get("port"), int)
+        ]
+        # Status is the execution outcome (scan completed), never the verdict.
+        return finish_tool(tr, "passed", evidence)
     except Exception as exc:  # noqa: BLE001
         evidence["exception"] = f"{type(exc).__name__}: {exc}"
         tr["checksAttempted"] = 0

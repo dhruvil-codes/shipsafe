@@ -90,3 +90,34 @@
   `bun run build` clean with `/` prerendered. One lib bug caught by tests and fixed (ftp:// spoof bypassed
   auto-prepend). Stale `.next` cache cleared after the route deletion.
 
+---
+
+## 7. Pure Real Execution Mode [2026-10-15] (branch `feat/pure-real-mode`)
+- **Live runner** (`packages/sandbox/src/live-runner.ts`, 12 tests): `getLiveSandbox()` (exact error when
+  `.env.local` creds missing), `resolveRunnerDir` / `loadRunnerFiles` (CRLF→LF normalized for Linux),
+  `resolveRemoteBase` (`$HOME/shipsafe` — the VM user `dev` cannot write `/root`),
+  `syncRunnerToVM` (SDK `files.write` channel + chmod), `runLiveScan` (detached `background: true` run with
+  `__SHIPSafe_DONE__` sentinel + `tail -c` poll deltas, timeout/abort kill). No true SDK streaming exists
+  in v0.5 (`onStdout` fires once at completion), so background+poll is the honest line-by-line mechanism.
+- **Live SSE route** (`stream/route.ts`, `maxDuration: 300`): connect → sync → run (real `stdout` events) →
+  `normalize` + `normalizeOsint` → `computeScore` → store COMPLETED with findings → `done`. VM failure
+  emits `[ERROR] Failed to connect to InstaBox Micro-VM: <detail>` + `done` and marks FAILED. Web now
+  depends on `@shipsafe/sandbox|adapters|scoring`; sandbox exposes a `./live-runner` subpath (webpack
+  cannot resolve the barrel's `.js`-suffixed re-exports).
+- **Frontend**: home page has zero demo replay/timers — VM errors render exactly in the terminal + banner.
+  `/scan/demo` deep-link keeps its explicitly-labeled offline sample (out of scan-path scope).
+- **Runner contract fixes found by the live VM**: `scanner.py` reported weakness-found as `failed` (adapter
+  drops failed tools → live scans could never emit baseline findings) and used non-contract evidence keys —
+  status is now execution-outcome and evidence adds `cert`/`protocols`/`ciphers`, `headers`, `status`,
+  `openPorts` (all additive). `osint_engine.py`: binary resolution (`/usr/local/bin`, `~/go/bin` before
+  PATH — fixes pip-httpx shadowing), 500-target cap with `totalSubdomains`/`truncated` (25,933 CT names
+  timed out httpx), indented-WHOIS regexes, `installer` URLs corrected (versioned PD assets via GitHub API;
+  subzy via `go install` — it publishes no releases).
+- **Adapter fix**: DMARC policy now read from checkdmarc `tags.p.value` (no top-level `policy` field).
+- **Live proof** (real VM `m_agqt6bou4ov76f236kutoorc7e`, Debian): tools installed (whois, checkdmarc,
+  subfinder v2.17.0, httpx v1.12.0, subzy via go), full `runLiveScan` vs `https://example.com` → exit 0,
+  4/4 baseline + 5/5 OSINT stages executed for real. Verification of genuine findings from the fixed
+  runners was re-run live (see follow-up entry if appended).
+- **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` 134/134 (sandbox 27 incl. 12 new live,
+  web 31, adapters 38), `bun run build` clean, `python -m unittest discover -s runner/tests` green.
+

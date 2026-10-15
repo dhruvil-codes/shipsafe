@@ -1,9 +1,32 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiStore, MAX_ACTIVE_SCANS } from "../_lib/store";
 import { POST as createScan } from "../scans/route";
 import { GET as getScan } from "../scans/[id]/route";
 import { POST as cancelScan } from "../scans/[id]/cancel/route";
 import { GET as streamScan } from "../scans/[id]/stream/route";
+
+vi.mock("@shipsafe/sandbox/live-runner", () => ({
+  getLiveSandbox: vi.fn(),
+  resolveRunnerDir: vi.fn(() => "/mock/runner"),
+  resolveRemoteBase: vi.fn(async () => "/mock/shipsafe"),
+  loadRunnerFiles: vi.fn(() => ({ "/mock/scanner.py": "print(1)" })),
+  syncRunnerToVM: vi.fn(async () => undefined),
+  runLiveScan: vi.fn(),
+}));
+
+vi.mock("@shipsafe/adapters", () => ({
+  normalize: vi.fn(() => []),
+  normalizeOsint: vi.fn(() => []),
+}));
+
+vi.mock("@shipsafe/scoring", () => ({
+  computeScore: vi.fn(() => ({ overall: 84, coverage: 100 })),
+}));
+
+import {
+  getLiveSandbox,
+  runLiveScan,
+} from "@shipsafe/sandbox/live-runner";
 
 function postJson(payload: unknown): Request {
   return new Request("http://localhost/api/scans", {
@@ -106,10 +129,36 @@ describe("GET /api/scans/:id", () => {
   });
 });
 
-describe("SSE /api/scans/:id/stream", () => {
-  beforeEach(() => apiStore.reset());
+describe("SSE /api/scans/:id/stream (live execution, mocked VM)", () => {
+  beforeEach(() => {
+    apiStore.reset();
+    vi.mocked(getLiveSandbox).mockReset().mockResolvedValue({} as never);
+    vi.mocked(runLiveScan).mockReset().mockImplementation(async (_sbx, _url, events) => {
+      events.onStdout("[tls] probing https://example.com:443 ...\n[tls] OK: certificate valid\n");
+      return {
+        scanResult: {
+          target: "https://example.com",
+          tools: [
+            {
+              tool: "tls-probe",
+              toolVersion: "0.1.0",
+              status: "passed",
+              startedAt: "2026-10-15T00:00:00.000Z",
+              endedAt: "2026-10-15T00:01:00.000Z",
+              durationMs: 1000,
+              checksAttempted: 3,
+              evidence: {},
+            },
+          ],
+        },
+        osintResult: null,
+        exitCode: 0,
+        logText: "[tls] OK",
+      };
+    });
+  });
 
-  it("emits stored events, log lines and a done terminator", async () => {
+  it("streams genuine VM stdout, persists the score, and ends with done", async () => {
     const { body } = await createValidScan();
     const res = await streamScan(new Request("http://localhost/"), {
       params: Promise.resolve({ id: body.scanId }),
@@ -117,9 +166,38 @@ describe("SSE /api/scans/:id/stream", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/event-stream");
     const text = await readStream(res);
-    expect(text).toContain("data:");
+    expect(text).toContain("[tls] OK: certificate valid");
     expect(text).toContain("Scan queued");
+    expect(text).toContain('"type":"result"');
     expect(text).toContain("event: done");
+
+    const detail = (await (
+      await getScan(new Request("http://localhost/"), {
+        params: Promise.resolve({ id: body.scanId }),
+      })
+    ).json()) as { scan: { status: string; score: number; coverage: number } };
+    expect(detail.scan.status).toBe("COMPLETED");
+    expect(detail.scan.score).toBe(84);
+    expect(detail.scan.coverage).toBe(100);
+  });
+
+  it("emits the exact VM connection error and marks FAILED when unreachable", async () => {
+    vi.mocked(getLiveSandbox).mockRejectedValueOnce(new Error("bad key"));
+    const { body } = await createValidScan();
+    const res = await streamScan(new Request("http://localhost/"), {
+      params: Promise.resolve({ id: body.scanId }),
+    });
+    expect(res.status).toBe(200);
+    const text = await readStream(res);
+    expect(text).toContain("[ERROR] Failed to connect to InstaBox Micro-VM: bad key");
+    expect(text).toContain("event: done");
+
+    const detail = (await (
+      await getScan(new Request("http://localhost/"), {
+        params: Promise.resolve({ id: body.scanId }),
+      })
+    ).json()) as { scan: { status: string } };
+    expect(detail.scan.status).toBe("FAILED");
   });
 
   it("returns 404 for unknown scans", async () => {

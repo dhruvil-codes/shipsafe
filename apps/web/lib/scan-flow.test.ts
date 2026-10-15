@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   advanceEngines,
   buildAiFixPrompt,
-  buildDemoOsint,
   finalizeEngines,
   initialEngines,
   mapApiFindings,
@@ -51,6 +50,15 @@ describe("parseStreamPayload", () => {
     });
     expect(parseStreamPayload("__status: active")).toEqual({ kind: "vmstatus", status: "active" });
     expect(parseStreamPayload("__done")).toEqual({ kind: "done" });
+  });
+
+  it("parses live VM stdout and error envelopes", () => {
+    expect(
+      parseStreamPayload(JSON.stringify({ type: "stdout", scanId: "s", text: "[tls] OK\n" })),
+    ).toEqual({ kind: "stdout", text: "[tls] OK\n" });
+    expect(
+      parseStreamPayload(JSON.stringify({ type: "error", message: "[ERROR] boom" })),
+    ).toEqual({ kind: "error", message: "[ERROR] boom" });
   });
 
   it("falls back to raw lines", () => {
@@ -158,15 +166,5 @@ describe("mapApiFindings", () => {
     ]);
     expect(mapped[0]?.severity).toBe("critical");
     expect(mapped[1]?.severity).toBe("info");
-    expect(mapped[0]?.source).toBe("web");
-  });
-});
-
-describe("buildDemoOsint", () => {
-  it("derives hostnames from the target URL", () => {
-    const osint = buildDemoOsint("https://example.com");
-    expect(osint.subdomains[0]?.host).toBe("example.com");
-    expect(osint.subdomains.some((s) => s.host === "staging.example.com")).toBe(true);
-    expect(osint.dmarc.status).toBe("fail");
   });
 });

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "SandboxProvider interface with InstaBox and in-memory fake implementations (ShipSafe scan compute).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./live-runner": "./src/live-runner.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

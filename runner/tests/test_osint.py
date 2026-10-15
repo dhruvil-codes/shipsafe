@@ -123,10 +123,52 @@ class TestEngineOffline(unittest.TestCase):
             self.assertTrue(doc["evidence"]["checkdmarc"]["ran"])
             self.assertEqual(doc["evidence"]["whois"]["registrar"], "Example Registrar, Inc.")
             self.assertEqual(doc["evidence"]["checkdmarc"]["parsed"]["dmarc"]["policy"], "none")
-            self.assertEqual(doc["evidence"]["checkdmarc"]["argv"], ["checkdmarc", "-f", "json", "example-test.invalid"])
+            argv = doc["evidence"]["checkdmarc"]["argv"]
+            self.assertEqual(argv[-3:], ["-f", "json", "example-test.invalid"])
+            self.assertTrue(argv[0].endswith("checkdmarc"))
             self.assertFalse(doc["evidence"]["subfinder"]["ran"])
             self.assertEqual(doc["status"], "passed")
             self.assertEqual(doc["checksAttempted"], 2)
+
+
+class TestWhoisPatterns(unittest.TestCase):
+    def test_indented_thin_whois_output_parses(self):
+        # Verisign-style thin output indents fields with spaces.
+        text = ("   Domain Name: EXAMPLE.COM\n"
+                "   Registrar: Example Registrar, Inc.\n"
+                "   Registry Expiry Date: 2027-08-13T04:00:00Z\n")
+        self.assertEqual(
+            engine.WHOIS_PATTERNS["registrar"].search(text).group(1).strip(),
+            "Example Registrar, Inc.",
+        )
+        self.assertEqual(
+            engine.WHOIS_PATTERNS["expiryDate"].search(text).group(2).strip(),
+            "2027-08-13T04:00:00Z",
+        )
+
+
+class TestTargetCap(unittest.TestCase):
+    def test_httpx_input_is_capped_with_totals_recorded(self):
+        if os.name != "posix":
+            self.skipTest("stub executables require POSIX exec")
+        with tempfile.TemporaryDirectory() as bindir, tempfile.TemporaryDirectory() as tmpdir:
+            stub = os.path.join(bindir, "httpx")
+            with open(stub, "w", encoding="utf-8") as fh:
+                fh.write("#!/usr/bin/env python3\n")
+            os.chmod(stub, os.stat(stub).st_mode | stat.S_IEXEC)
+            old_path = os.environ.get("PATH", "")
+            # Neutralize well-known install dirs so the stub is authoritative.
+            os.environ["PATH"] = bindir + os.pathsep + tempfile.gettempdir()
+            try:
+                subs = [f"h{i}.example-test.invalid" for i in range(600)]
+                section = engine.stage_httpx(subs, tmpdir)
+            finally:
+                os.environ["PATH"] = old_path
+            self.assertTrue(section["ran"])
+            self.assertEqual(section["totalSubdomains"], 600)
+            self.assertTrue(section["truncated"])
+            with open(os.path.join(tmpdir, "httpx_targets.txt"), encoding="utf-8") as fh:
+                self.assertEqual(len([ln for ln in fh if ln.strip()]), engine.MAX_OSINT_TARGETS)
 
 
 if __name__ == "__main__":

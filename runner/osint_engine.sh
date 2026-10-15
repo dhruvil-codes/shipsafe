@@ -27,22 +27,6 @@ if [ -z "$TARGET" ] || [ -z "$OUTDIR" ]; then
 fi
 
 # --- 1. Go binaries (ProjectDiscovery + subzy): install when missing --------
-install_go_binary() {
-  name="$1"; url="$2"; archive="$3"; member="$4"
-  if command -v "$name" >/dev/null 2>&1; then return 0; fi
-  echo "[osint] installing ${name} from ${url}" >&2
-  if ! curl -fsSL "$url" -o "/tmp/${archive}"; then
-    echo "[osint] WARN: download failed for ${name}; stage will record ran=false" >&2
-    return 0
-  fi
-  case "$archive" in
-    *.zip)     unzip -q -o "/tmp/${archive}" -d /usr/local/bin "$member" 2>/dev/null || true ;;
-    *.tar.gz)  tar -xzf "/tmp/${archive}" -C /usr/local/bin "$member" 2>/dev/null || true ;;
-  esac
-  chmod +x "/usr/local/bin/${member}" 2>/dev/null || true
-  rm -f "/tmp/${archive}"
-}
-
 if [ "$(id -u)" = "0" ]; then
   BIN_DIR=/usr/local/bin
 else
@@ -51,15 +35,46 @@ else
   export PATH="$BIN_DIR:$PATH"
 fi
 
-install_go_binary subfinder \
-  "https://github.com/projectdiscovery/subfinder/releases/latest/download/subfinder_linux_amd64.zip" \
-  "subfinder.zip" "subfinder"
-install_go_binary httpx \
-  "https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_linux_amd64.zip" \
-  "httpx.zip" "httpx"
-install_go_binary subzy \
-  "https://github.com/PentestPad/subzy/releases/latest/download/subzy_linux_amd64.tar.gz" \
-  "subzy.tar.gz" "subzy"
+# NOTE: ProjectDiscovery release zips use versioned asset names
+# (subfinder_2.17.0_linux_amd64.zip), so resolve via the GitHub API.
+# PentestPad/subzy publishes no release artifacts: install via `go install`.
+install_pd_binary() {
+  repo="$1"; name="$2"
+  if command -v "$name" >/dev/null 2>&1 && [ "$(command -v "$name")" != "$HOME/.local/bin/$name" ]; then return 0; fi
+  echo "[osint] installing ${name} from ${repo}" >&2
+  asset_url="$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
+    | grep -o "\"browser_download_url\": *\"[^\"]*linux_amd64[^\"]*\"\"" \
+    | head -1 | cut -d'"' -f4)" || true
+  if [ -z "$asset_url" ]; then
+    echo "[osint] WARN: could not resolve ${name} release; stage will record ran=false" >&2
+    return 0
+  fi
+  if ! curl -fsSL "$asset_url" -o "/tmp/${name}.zip"; then
+    echo "[osint] WARN: download failed for ${name}; stage will record ran=false" >&2
+    return 0
+  fi
+  if [ "$(id -u)" = "0" ]; then
+    unzip -q -o "/tmp/${name}.zip" -d /usr/local/bin "$name" 2>/dev/null || true
+  else
+    unzip -q -o "/tmp/${name}.zip" -d "$BIN_DIR" "$name" 2>/dev/null || true
+  fi
+  chmod +x "$BIN_DIR/${name}" 2>/dev/null || true
+  rm -f "/tmp/${name}.zip"
+}
+
+install_pd_binary projectdiscovery/subfinder subfinder
+install_pd_binary projectdiscovery/httpx httpx
+
+if ! command -v subzy >/dev/null 2>&1; then
+  if command -v go >/dev/null 2>&1; then
+    echo "[osint] installing subzy via go install" >&2
+    go install github.com/PentestPad/subzy@latest 2>/dev/null || \
+      echo "[osint] WARN: go install failed; subzy stage will record ran=false" >&2
+    export PATH="$HOME/go/bin:$PATH"
+  else
+    echo "[osint] WARN: no go toolchain; subzy stage will record ran=false" >&2
+  fi
+fi
 
 # --- 2. checkdmarc (Python) ---------------------------------------------------
 if ! command -v checkdmarc >/dev/null 2>&1; then

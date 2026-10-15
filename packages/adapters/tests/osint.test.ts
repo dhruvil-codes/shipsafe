@@ -51,6 +51,32 @@ describe('dmarc evidence', () => {
     const clean = run(osintClean as Fixture);
     expect(clean.some((f) => f.ruleId.startsWith('OSINT-DMARC'))).toBe(false);
   });
+
+  it('reads the policy from the checkdmarc tags.p.value shape', () => {
+    const base = (osintPartial as Fixture).toolResults[0] as ToolResult;
+    const evidence = {
+      ...(base.evidence as Record<string, unknown>),
+      checkdmarc: {
+        ran: true,
+        argv: ['checkdmarc'],
+        returncode: 0,
+        parsed: {
+          domain: 'example-test.invalid',
+          dmarc: {
+            record: 'v=DMARC1; p=none',
+            valid: true,
+            location: '_dmarc.example-test.invalid',
+            tags: { p: { value: 'none', explicit: true } },
+          },
+        },
+      },
+    };
+    const findings = normalizeOsint(
+      [{ ...base, evidence }],
+      (osintPartial as Fixture).target,
+    );
+    expect(findings.map((f) => f.ruleId)).toContain('OSINT-DMARC-PERMISSIVE');
+  });
 });
 
 describe('takeover evidence', () => {

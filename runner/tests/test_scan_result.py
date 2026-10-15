@@ -70,5 +70,49 @@ class TestScannerOffline(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(outdir, "scan_result.sha256")))
 
 
+class TestAdapterContractShapes(unittest.TestCase):
+    """Status is the execution outcome; weakness evidence uses the adapter
+    contract keys (packages/adapters README) so genuine findings survive."""
+
+    def test_local_http_server_yields_passed_with_adapter_shapes(self):
+        import functools
+        import http.server
+        import threading
+
+        with tempfile.TemporaryDirectory() as www:
+            handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=www)
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with tempfile.TemporaryDirectory() as outdir:
+                    target = f"http://127.0.0.1:{port}"
+                    rc = subprocess.run(
+                        [sys.executable, SCANNER, target, outdir],
+                        capture_output=True, text=True, timeout=120,
+                    ).returncode
+                    self.assertEqual(rc, 0)
+                    with open(os.path.join(outdir, "scan_result.json"), encoding="utf-8") as fh:
+                        doc = json.load(fh)
+                    validate_scan_result(doc)
+                    by_tool = {t["tool"]: t for t in doc["tools"]}
+                    # Executed tools report passed even when weaknesses exist.
+                    headers = by_tool["headers"]
+                    self.assertEqual(headers["status"], "passed")
+                    self.assertIsInstance(headers["evidence"].get("headers"), dict)
+                    self.assertIn("server", headers["evidence"]["headers"])
+                    sensitive = by_tool["sensitive-files"]
+                    self.assertEqual(sensitive["status"], "passed")
+                    for probe in sensitive["evidence"]["probes"]:
+                        self.assertIn("status", probe)
+                    ports = by_tool["ports"]
+                    self.assertEqual(ports["status"], "passed")
+                    self.assertIsInstance(ports["evidence"].get("openPorts"), list)
+            finally:
+                server.shutdown()
+                thread.join(timeout=10)
+
+
 if __name__ == "__main__":
     unittest.main()

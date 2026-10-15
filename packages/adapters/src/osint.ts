@@ -127,11 +127,16 @@ function parseDmarc(evidence: Record<string, unknown>): DraftFinding[] {
     return [missingDraft(domain, { valid: false, policy: null, record: null })];
   }
   // checkdmarc nests results under `dmarc` (and `spf`); accept a flat record too.
+  // The library shape carries the policy in `tags.p.value`, not `policy`.
   const dmarc = isRecord(rawDmarc) ? (rawDmarc as Record<string, unknown>) : parsed;
   if (dmarc['record'] === undefined && dmarc['valid'] === undefined && dmarc['policy'] === undefined) {
     return [];
   }
-  const policy = typeof dmarc['policy'] === 'string' ? dmarc['policy'].toLowerCase() : null;
+  const tags = isRecord(dmarc['tags']) ? (dmarc['tags'] as Record<string, unknown>) : {};
+  const tagP = isRecord(tags['p']) ? (tags['p'] as Record<string, unknown>) : {};
+  const tagPolicy = typeof tagP['value'] === 'string' ? (tagP['value'] as string).toLowerCase() : null;
+  const policy =
+    typeof dmarc['policy'] === 'string' ? dmarc['policy'].toLowerCase() : tagPolicy;
   const valid = dmarc['valid'];
   const location = dmarc['location'];
 

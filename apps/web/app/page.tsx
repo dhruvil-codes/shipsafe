@@ -9,7 +9,6 @@ import AIFixPromptCard from "../components/AIFixPromptCard";
 import FindingsViewer from "../components/FindingsViewer";
 import {
   advanceEngines,
-  buildDemoOsint,
   finalizeEngines,
   initialEngines,
   mapApiFindings,
@@ -20,36 +19,22 @@ import {
   type ScanPhase,
   type UiFinding,
 } from "../lib/scan-flow";
-import {
-  MOCK_COVERAGE,
-  MOCK_FINDINGS,
-  MOCK_LOGS,
-  MOCK_SANDBOX_ID,
-  MOCK_SCORE,
-} from "../lib/mock";
 
 const MAX_LINES = 500;
 
-function pushLine(setLines: React.Dispatch<React.SetStateAction<string[]>>, line: string) {
-  setLines((prev) => [...prev.slice(-MAX_LINES), line]);
-}
-
-function mockToUi(): UiFinding[] {
-  return MOCK_FINDINGS.map((f) => ({
-    id: f.id,
-    severity: f.severity,
-    title: f.title,
-    summary: f.summary,
-    affected: f.affected,
-    evidence: f.evidence,
-    fix: f.fix,
-    source: "web" as const,
-  }));
+function pushLines(
+  setLines: React.Dispatch<React.SetStateAction<string[]>>,
+  text: string,
+) {
+  const parts = text.split("\n");
+  setLines((prev) => [...prev, ...parts.filter((p) => p.length > 0)].slice(-MAX_LINES));
 }
 
 /**
  * Single-screen terminal experience: IDLE -> SCANNING -> COMPLETED.
- * No route changes during scanning — everything happens in this window.
+ * Pure Real Execution Mode: every scan runs on the live InstaBox micro-VM
+ * via /api/scans + SSE. No mock generators, no demo replays — a failed VM
+ * connection surfaces the exact error in the terminal.
  */
 export default function HomeTerminal() {
   const [phase, setPhase] = useState<ScanPhase>("idle");
@@ -61,30 +46,21 @@ export default function HomeTerminal() {
   const [osint, setOsint] = useState<OsintSummary | null>(null);
   const [score, setScore] = useState<number | null>(null);
   const [coverage, setCoverage] = useState<number | null>(null);
-  const [sandboxId, setSandboxId] = useState(MOCK_SANDBOX_ID);
+  const [sandboxId, setSandboxId] = useState("sbx_pending");
   const [vmStatus, setVmStatus] = useState<VmStatus>("ready");
-  const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const timers = useRef<number[]>([]);
   const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     document.title = "ShipSafe — live terminal scan";
     return () => {
       sourceRef.current?.close();
-      timers.current.forEach((t) => window.clearTimeout(t));
     };
-  }, []);
-
-  const clearTimers = useCallback(() => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
   }, []);
 
   const reset = useCallback(() => {
     sourceRef.current?.close();
     sourceRef.current = null;
-    clearTimers();
     setPhase("idle");
     setTarget("");
     setScanId(null);
@@ -94,44 +70,18 @@ export default function HomeTerminal() {
     setOsint(null);
     setScore(null);
     setCoverage(null);
-    setSandboxId(MOCK_SANDBOX_ID);
+    setSandboxId("sbx_pending");
     setVmStatus("ready");
-    setOffline(false);
     setError(null);
-  }, [clearTimers]);
+  }, []);
 
-  /** Offline fallback: clearly-labeled simulated stream ending in the sample report. */
-  const runOfflineDemo = useCallback(
-    (url: string) => {
-      setOffline(true);
-      setVmStatus("provisioning");
-      let i = 0;
-      const step = () => {
-        if (i === 1) setVmStatus("active");
-        if (i === 3) setVmStatus("executing");
-        if (i < MOCK_LOGS.length) {
-          const line = MOCK_LOGS[i];
-          if (line !== undefined) {
-            pushLine(setLines, line);
-            setEngines((prev) => advanceEngines(prev, "RUNNING", line));
-          }
-          i += 1;
-          timers.current.push(window.setTimeout(step, 300));
-        } else {
-          setEngines((prev) => finalizeEngines(prev));
-          setFindings(mockToUi());
-          setOsint(buildDemoOsint(url));
-          setScore(MOCK_SCORE);
-          setCoverage(MOCK_COVERAGE);
-          setVmStatus("torn-down");
-          setPhase("completed");
-        }
-      };
-      pushLine(setLines, `$ shipsafe scan ${url}`);
-      timers.current.push(window.setTimeout(step, 300));
-    },
-    [],
-  );
+  /** Terminal failure: exact VM error in the stream, engines finalized, no replay. */
+  const failScan = useCallback((message: string) => {
+    setLines((prev) => [...prev.slice(-MAX_LINES), message]);
+    setError(message);
+    setEngines((prev) => finalizeEngines(prev));
+    setVmStatus("torn-down");
+  }, []);
 
   const finishFromApi = useCallback(
     async (id: string) => {
@@ -146,28 +96,29 @@ export default function HomeTerminal() {
         setCoverage(typeof data.scan?.coverage === "number" ? data.scan.coverage : null);
         setFindings(mapApiFindings(data.findings ?? []));
         setOsint(null);
-      } catch {
-        setScore(null);
-        setCoverage(null);
-        setFindings([]);
-        setOsint(null);
-      } finally {
-        setEngines((prev) => finalizeEngines(prev));
-        setVmStatus("torn-down");
-        setPhase("completed");
+      } catch (err) {
+        failScan(
+          `[ERROR] Failed to load scan results: ${(err as Error).message}`,
+        );
+        return;
       }
+      setEngines((prev) => finalizeEngines(prev));
+      setVmStatus("torn-down");
+      setPhase("completed");
     },
-    [],
+    [failScan],
   );
 
   const streamFromApi = useCallback(
-    (id: string, url: string) => {
+    (id: string) => {
       let settled = false;
       let source: EventSource;
       try {
         source = new EventSource(`/api/scans/${id}/stream`);
-      } catch {
-        runOfflineDemo(url);
+      } catch (err) {
+        failScan(
+          `[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`,
+        );
         return;
       }
       sourceRef.current = source;
@@ -185,12 +136,27 @@ export default function HomeTerminal() {
             break;
           case "log":
             settled = true;
-            setOffline(false);
-            pushLine(setLines, `[${ev.stage.toLowerCase()}] ${ev.message}`);
+            setLines((prev) =>
+              [...prev, `[${ev.stage.toLowerCase()}] ${ev.message}`].slice(-MAX_LINES),
+            );
             setEngines((prev) => advanceEngines(prev, ev.stage, ev.message));
             if (/provision/i.test(ev.stage)) setVmStatus("provisioning");
             else if (/process/i.test(ev.stage)) setVmStatus("executing");
             else setVmStatus("active");
+            break;
+          case "stdout":
+            if (ev.text) {
+              settled = true;
+              pushLines(setLines, ev.text);
+              for (const line of ev.text.split("\n")) {
+                if (line) setEngines((prev) => advanceEngines(prev, "", line));
+              }
+              setVmStatus("executing");
+            }
+            break;
+          case "error":
+            close();
+            failScan(ev.message);
             break;
           case "result":
             if (typeof ev.score === "number") setScore(ev.score);
@@ -203,8 +169,7 @@ export default function HomeTerminal() {
           case "line":
             if (ev.text) {
               settled = true;
-              setOffline(false);
-              pushLine(setLines, ev.text);
+              setLines((prev) => [...prev, ev.text].slice(-MAX_LINES));
               setEngines((prev) => advanceEngines(prev, "", ev.text));
             }
             break;
@@ -218,11 +183,13 @@ export default function HomeTerminal() {
       source.onerror = () => {
         if (!settled) {
           close();
-          runOfflineDemo(url);
+          failScan(
+            `[ERROR] Failed to connect to InstaBox Micro-VM: event-stream to /api/scans/${id}/stream failed before any output`,
+          );
         }
       };
     },
-    [finishFromApi, runOfflineDemo],
+    [finishFromApi, failScan],
   );
 
   const startScan = useCallback(
@@ -231,7 +198,7 @@ export default function HomeTerminal() {
       setTarget(url);
       setPhase("scanning");
       setVmStatus("provisioning");
-      pushLine(setLines, `$ shipsafe scan ${url}`);
+      setLines([`$ shipsafe scan ${url}`]);
       try {
         const res = await fetch("/api/scans", {
           method: "POST",
@@ -244,26 +211,27 @@ export default function HomeTerminal() {
         if (!id) throw new Error("scan request returned no id");
         setScanId(id);
         setSandboxId(`sbx_live_${id.replace(/[^a-z0-9]/gi, "").slice(-10)}`);
-        streamFromApi(id, url);
+        streamFromApi(id);
       } catch (err) {
-        setScanId(null);
-        setError(null);
-        void err;
-        runOfflineDemo(url);
+        failScan(
+          `[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`,
+        );
       }
     },
-    [reset, streamFromApi, runOfflineDemo],
+    [reset, streamFromApi, failScan],
   );
 
   const cancelScan = useCallback(async () => {
-    if (!scanId || phase !== "scanning" || offline) return;
+    if (!scanId || phase !== "scanning") return;
     try {
       await fetch(`/api/scans/${scanId}/cancel`, { method: "POST" });
-      pushLine(setLines, "[cancel] cancellation requested — sandbox teardown initiated");
+      setLines((prev) =>
+        [...prev, "[cancel] cancellation requested — sandbox teardown initiated"].slice(-MAX_LINES),
+      );
     } catch {
       // best effort; reconciler enforces teardown server-side
     }
-  }, [scanId, phase, offline]);
+  }, [scanId, phase]);
 
   const scanning = phase === "scanning";
   const capped = score !== null && score <= 40 && findings.some((f) => f.severity === "critical");
@@ -280,8 +248,8 @@ export default function HomeTerminal() {
           <p className="term-hero">
             Ship fast. Know what&apos;s exposed.
             <span className="term-hero-sub">
-              Baseline security assessment in a disposable micro-VM — watch every
-              tool run, live.
+              Baseline security assessment on a live disposable micro-VM — watch
+              every tool run, line by line.
             </span>
           </p>
           <CommandBar scanning={false} onSubmit={(url) => void startScan(url)} />
@@ -293,19 +261,13 @@ export default function HomeTerminal() {
           <div className="term-scan-head">
             <span className="term-target">{target}</span>
             {scanId && <span className="term-scanid">scan {scanId}</span>}
-            {scanning && !offline && (
+            {scanning && !error && (
               <button type="button" className="term-cancel" onClick={() => void cancelScan()}>
                 Cancel scan
               </button>
             )}
           </div>
 
-          {offline && (
-            <div className="term-banner" role="status">
-              <strong>Offline demo.</strong> The scan API is unreachable, so this
-              run replays cached sample data.
-            </div>
-          )}
           {error && (
             <div className="term-banner term-banner-err" role="alert">
               {error}
@@ -325,7 +287,7 @@ export default function HomeTerminal() {
             <>
               <AIFixPromptCard target={target} score={score} findings={findings} />
               <FindingsViewer
-                scanId={scanId ?? "demo"}
+                scanId={scanId ?? "unknown"}
                 target={target}
                 score={score}
                 coverage={coverage}
