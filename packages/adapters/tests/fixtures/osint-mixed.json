@@ -1,0 +1,77 @@
+{
+  "target": "https://app.example-test.invalid",
+  "toolResults": [
+    {
+      "tool": "osint-suite",
+      "toolVersion": "1.0.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T14:40:00.000Z",
+      "endedAt": "2026-10-15T14:40:15.000Z",
+      "durationMs": 15200,
+      "checksAttempted": 5,
+      "evidence": {
+        "domain": "example-test.invalid",
+        "subfinder": {
+          "ran": true,
+          "argv": ["subfinder", "-d", "example-test.invalid", "-silent", "-o", "/tmp/subdomains.txt"],
+          "returncode": 0,
+          "subdomains": ["www.example-test.invalid", "staging.example-test.invalid", "assets.example-test.invalid"],
+          "count": 3
+        },
+        "httpx": {
+          "ran": true,
+          "argv": ["httpx", "-l", "/tmp/targets.txt", "-silent", "-json", "-tech-detect", "-status-code", "-title"],
+          "returncode": 0,
+          "hosts": [
+            {
+              "input": "staging.example-test.invalid",
+              "url": "https://staging.example-test.invalid",
+              "status_code": 200,
+              "title": "Staging Console",
+              "tech": ["Nginx", "React"],
+              "server": "nginx/1.25.3"
+            },
+            {
+              "input": "www.example-test.invalid",
+              "url": "https://www.example-test.invalid",
+              "status_code": 200,
+              "title": "Example",
+              "tech": ["Nginx"]
+            }
+          ],
+          "count": 2
+        },
+        "subzy": {
+          "ran": true,
+          "argv": ["subzy", "run", "--targets", "/tmp/targets.txt", "--hide_fails"],
+          "returncode": 0,
+          "results": [
+            { "subdomain": "assets.example-test.invalid", "service": "s3", "vulnerable": true, "http_status": 404 },
+            { "subdomain": "www.example-test.invalid", "service": null, "vulnerable": false }
+          ],
+          "raw": ""
+        },
+        "checkdmarc": {
+          "ran": true,
+          "argv": ["checkdmarc", "-f", "json", "example-test.invalid"],
+          "returncode": 0,
+          "parsed": {
+            "domain": "example-test.invalid",
+            "spf": { "record": "v=spf1 -all", "valid": true },
+            "dmarc": null
+          },
+          "raw": "{\"dmarc\": null}"
+        },
+        "whois": {
+          "ran": true,
+          "argv": ["whois", "example-test.invalid"],
+          "returncode": 0,
+          "registrar": "Example Registrar, Inc.",
+          "creationDate": "2015-03-14T00:00:00Z",
+          "expiryDate": "2027-03-14T00:00:00Z",
+          "daysUntilExpiry": 400
+        }
+      }
+    }
+  ]
+}

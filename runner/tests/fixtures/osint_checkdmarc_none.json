@@ -1,0 +1,1 @@
+{"domain": "example-test.invalid", "spf": {"record": "v=spf1 include:_spf.example ~all", "valid": true}, "dmarc": {"record": "v=DMARC1; p=none; rua=mailto:dmarc@example-test.invalid", "valid": true, "policy": "none", "location": "_dmarc.example-test.invalid"}}

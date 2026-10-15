@@ -1,0 +1,2 @@
+{"input": "staging.example-test.invalid", "host": "93.184.216.34", "url": "https://staging.example-test.invalid", "status_code": 200, "title": "Staging Console", "tech": ["Nginx", "React"], "server": "nginx/1.25.3"}
+{"input": "www.example-test.invalid", "host": "93.184.216.34", "url": "https://www.example-test.invalid", "status_code": 200, "title": "Example", "tech": ["Nginx"]}

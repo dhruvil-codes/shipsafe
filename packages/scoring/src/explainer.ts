@@ -202,6 +202,36 @@ const TEMPLATES: Record<string, Explanation> = {
     fix: 'Return generic errors to clients; log details server-side (Express):\n\n```js\napp.use((err, req, res, next) => {\n  logger.error({ err });\n  res.status(500).send("Something went wrong");\n});\n```',
     verify: 'Trigger the error and confirm only a generic message is returned, then re-run the ShipSafe scan.',
   },
+  'OSINT-DMARC-MISSING': {
+    what: 'The domain publishes no usable DMARC record (confirmed by the checkdmarc validator).',
+    why: 'Without a DMARC policy, anyone can send email that appears to come from this domain and receivers will still deliver it — the starting point for phishing and business-email compromise.',
+    fix: 'Publish a DMARC record, starting at monitoring and moving to enforcement:\n\n```dns\n_dmarc.HOST.  TXT  "v=DMARC1; p=reject; rua=mailto:security@HOST; fo=1; adkim=s; aspf=s"\n```\n(Replace HOST with the domain; begin with `p=quarantine` while reviewing aggregate reports.)',
+    verify: 'Run `dig +short TXT _dmarc.HOST` and confirm the record, validate with an online DMARC checker, then re-run the ShipSafe scan.',
+  },
+  'OSINT-DMARC-PERMISSIVE': {
+    what: 'The domain publishes a DMARC record with policy p=none (monitoring only).',
+    why: 'Receivers take no action on mail that fails SPF/DKIM alignment, so spoofed messages are still delivered to inboxes.',
+    fix: 'Tighten toward enforcement once legitimate senders are aligned:\n\n```dns\n_dmarc.HOST.  TXT  "v=DMARC1; p=quarantine; pct=100; rua=mailto:security@HOST"\n```\nThen graduate to `p=reject` while monitoring `rua` aggregate reports.',
+    verify: 'Confirm the updated policy with `dig +short TXT _dmarc.HOST`, then re-run the ShipSafe scan.',
+  },
+  'OSINT-SUBDOMAIN-TAKEOVER': {
+    what: 'A subdomain has a dangling DNS record pointing at an unclaimed third-party service (confirmed by the subzy fingerprint match).',
+    why: 'An attacker can claim that service endpoint and serve attacker-controlled content under your domain — phishing, credential theft, and cookie theft on sibling subdomains.',
+    fix: 'Reclaim or remove the dangling record immediately:\n\n```bash\ndig +short CNAME SUBDOMAIN\n# either claim the endpoint at the provider, or delete the record from the zone\n```',
+    verify: 'Confirm the dangling record is gone (`dig +short CNAME SUBDOMAIN` returns nothing unexpected), then re-run the ShipSafe scan.',
+  },
+  'OSINT-EXPOSED-STAGING': {
+    what: 'A staging/dev-style subdomain answers with a live HTTP 2xx response.',
+    why: 'Non-production environments frequently carry weaker credentials, debug endpoints, and production data copies — reachable staging is a favored entry point.',
+    fix: 'Gate or retire the environment:\n\n```bash\n# restrict to office/VPN ranges or require authentication,\n# or delete the DNS record if the environment is retired\ndig +short STAGING_HOST\n```',
+    verify: 'Request the host from an untrusted network and confirm it no longer serves content anonymously, then re-run the ShipSafe scan.',
+  },
+  'OSINT-DOMAIN-EXPIRING': {
+    what: 'WHOIS shows the domain registration expires within 30 days (or has already lapsed).',
+    why: 'If renewal fails — dead contact, failed payment — the domain lapses and anyone can register it, enabling full impersonation of the service.',
+    fix: 'Renew now and prevent recurrence:\n\n```bash\n# renew at the registrar, then enable auto-renew + registry lock\nwhois DOMAIN | grep -i expir\n```',
+    verify: 'Confirm the new expiry date in WHOIS output and that auto-renew is enabled, then re-run the ShipSafe scan.',
+  },
 };
 
 /**

@@ -51,3 +51,24 @@
   - `bun run build`: **Next.js 15 production build passed cleanly**.
   - Deleted temporary worktree folders (`D:\shipsafe-agent-*`) to free disk space.
 
+---
+
+## 5. Real OSINT & Attack Surface Engine [2026-10-15] (branch `feat/osint-engine`)
+- **In-VM runner** (`runner/osint_engine.py` + `runner/osint_engine.sh`): orchestrates REAL binaries only —
+  subfinder, httpx, subzy, checkdmarc, whois (+dnsutils) — sequential JSON pipeline into a single
+  `osint-suite` ToolResult (`osint_result.json` + `.sha256`). Missing/failed binaries record `ran: false`
+  with error text; consolidated status `passed` iff ≥1 stage executed, else `failed` with
+  `checksAttempted: 0`. Zero simulation: no output is ever fabricated.
+- **Normalizer** (`packages/adapters/src/osint.ts`): `normalizeOsint` + `parseOsintEvidence` wired into the
+  main `normalize()` aggregator (the `normalizeAll` participant) and `OSINT_RULE_CATALOG` merged into
+  `RULE_CATALOG`: `OSINT-DMARC-MISSING` (HIGH, CWE-358), `OSINT-DMARC-PERMISSIVE` (MEDIUM, CWE-358),
+  `OSINT-SUBDOMAIN-TAKEOVER` (CRITICAL, CWE-650), `OSINT-EXPOSED-STAGING` (MEDIUM, CWE-200, live-2xx only),
+  `OSINT-DOMAIN-EXPIRING` (MEDIUM, CWE-672, ≤30 days). Shape-based parsing, fingerprint dedup, redaction.
+- **Refactor**: shared `fingerprintFor`/`redactSecrets`/`DraftFinding` moved to
+  `packages/adapters/src/primitives.ts` (cycle-free import graph); `DraftFinding.owasp` / `RuleMeta.owasp`
+  now optional (domain expiry has no honest Top-10 mapping).
+- **Scoring**: 5 deterministic explainer templates with fenced fix snippets (full-catalog test now covers 35 rules).
+- **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` 105/105 (adapters 37 incl. 14 new OSINT),
+  `bun run build` clean, `python -m unittest discover -s runner/tests` 8 tests OK (1 POSIX-only stub test
+  skips on Windows). One parser bug caught by tests and fixed (explicit `"dmarc": null` → MISSING).
+

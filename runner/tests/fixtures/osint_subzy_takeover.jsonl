@@ -1,0 +1,2 @@
+{"subdomain": "assets.example-test.invalid", "service": "s3", "vulnerable": true, "http_status": 404}
+{"subdomain": "www.example-test.invalid", "service": null, "vulnerable": false}

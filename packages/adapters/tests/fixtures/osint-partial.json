@@ -1,0 +1,43 @@
+{
+  "target": "https://relaxed.example-test.invalid",
+  "toolResults": [
+    {
+      "tool": "osint-suite",
+      "toolVersion": "1.0.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T14:40:00.000Z",
+      "endedAt": "2026-10-15T14:40:15.000Z",
+      "durationMs": 15200,
+      "checksAttempted": 2,
+      "evidence": {
+        "domain": "example-test.invalid",
+        "subfinder": { "ran": false, "argv": ["subfinder"], "returncode": null, "error": "subfinder did not run: binary not installed" },
+        "httpx": { "ran": false, "argv": ["httpx"], "returncode": null, "error": "httpx did not run: binary not installed" },
+        "subzy": { "ran": false, "argv": ["subzy"], "returncode": null, "error": "subzy did not run: binary not installed" },
+        "checkdmarc": {
+          "ran": true,
+          "argv": ["checkdmarc", "-f", "json", "example-test.invalid"],
+          "returncode": 0,
+          "parsed": {
+            "domain": "example-test.invalid",
+            "dmarc": {
+              "record": "v=DMARC1; p=none; rua=mailto:dmarc@example-test.invalid",
+              "valid": true,
+              "policy": "none",
+              "location": "_dmarc.example-test.invalid"
+            }
+          },
+          "raw": "{\"dmarc\": {\"policy\": \"none\"}}"
+        },
+        "whois": {
+          "ran": true,
+          "argv": ["whois", "example-test.invalid"],
+          "returncode": 0,
+          "registrar": "Example Registrar, Inc.",
+          "expiryDate": "2026-10-25T00:00:00Z",
+          "daysUntilExpiry": 10
+        }
+      }
+    }
+  ]
+}

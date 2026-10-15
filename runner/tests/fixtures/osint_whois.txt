@@ -1,0 +1,6 @@
+Domain Name: EXAMPLE-TEST.INVALID
+Registrar: Example Registrar, Inc.
+Creation Date: 2015-03-14T00:00:00Z
+Registry Expiry Date: 2027-03-14T00:00:00Z
+Name Server: NS1.EXAMPLE.INVALID
+DNSSEC: unsigned

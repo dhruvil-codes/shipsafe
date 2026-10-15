@@ -1,0 +1,69 @@
+{
+  "target": "https://clean.example-test.invalid",
+  "toolResults": [
+    {
+      "tool": "osint-suite",
+      "toolVersion": "1.0.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T14:40:00.000Z",
+      "endedAt": "2026-10-15T14:40:15.000Z",
+      "durationMs": 15200,
+      "checksAttempted": 5,
+      "evidence": {
+        "domain": "example-test.invalid",
+        "subfinder": {
+          "ran": true,
+          "argv": ["subfinder", "-d", "example-test.invalid", "-silent"],
+          "returncode": 0,
+          "subdomains": ["www.example-test.invalid"],
+          "count": 1
+        },
+        "httpx": {
+          "ran": true,
+          "argv": ["httpx", "-l", "/tmp/targets.txt", "-silent", "-json"],
+          "returncode": 0,
+          "hosts": [
+            {
+              "input": "www.example-test.invalid",
+              "url": "https://www.example-test.invalid",
+              "status_code": 200,
+              "title": "Example",
+              "tech": ["Nginx"]
+            }
+          ],
+          "count": 1
+        },
+        "subzy": {
+          "ran": true,
+          "argv": ["subzy", "run", "--targets", "/tmp/targets.txt", "--hide_fails"],
+          "returncode": 0,
+          "results": [{ "subdomain": "www.example-test.invalid", "vulnerable": false }],
+          "raw": ""
+        },
+        "checkdmarc": {
+          "ran": true,
+          "argv": ["checkdmarc", "-f", "json", "example-test.invalid"],
+          "returncode": 0,
+          "parsed": {
+            "domain": "example-test.invalid",
+            "dmarc": {
+              "record": "v=DMARC1; p=reject; rua=mailto:security@example-test.invalid",
+              "valid": true,
+              "policy": "reject",
+              "location": "_dmarc.example-test.invalid"
+            }
+          },
+          "raw": "{\"dmarc\": {\"policy\": \"reject\"}}"
+        },
+        "whois": {
+          "ran": true,
+          "argv": ["whois", "example-test.invalid"],
+          "returncode": 0,
+          "registrar": "Example Registrar, Inc.",
+          "expiryDate": "2029-03-14T00:00:00Z",
+          "daysUntilExpiry": 800
+        }
+      }
+    }
+  ]
+}

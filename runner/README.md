@@ -11,7 +11,9 @@ no ShipSafe credentials.
 | ---- | ------- |
 | `shipsafe-runner.sh` | Bash entrypoint: `shipsafe-runner.sh <TARGET_URL> <OUTDIR>` |
 | `scanner.py` | Stdlib-only Python scanner (TLS, headers, sensitive files, ports) |
-| `tests/` | Offline shape tests for `scan_result.json` |
+| `osint_engine.sh` | Bash entrypoint: installs the OSINT toolchain, then runs `osint_engine.py` |
+| `osint_engine.py` | Stdlib-only OSINT orchestrator (subfinder, httpx, subzy, checkdmarc, whois) |
+| `tests/` | Offline shape tests for `scan_result.json` + `osint_result.json` |
 
 ## Usage
 
@@ -62,6 +64,25 @@ Invariants:
   `kill` the sandbox after collecting `/work/out/*` and verifying the
   SHA-256 checksum.
 - Reconciler labels on the sandbox: `scan_id`, `workspace_id`, `expires_at`.
+
+## OSINT engine
+
+`osint_engine.sh <TARGET_URL_OR_DOMAIN> <OUTDIR>` installs the official
+open-source toolchain when missing (Go binaries for subfinder/httpx/subzy,
+`pip install checkdmarc dnspython`, `apt-get install whois dnsutils`) and runs
+`osint_engine.py`, which executes the **real binaries** sequentially —
+`subfinder -d <domain> -silent`, `httpx -l <subs> -silent -json -tech-detect
+-status-code -title`, `subzy run --targets <subs> --hide_fails`,
+`checkdmarc -f json <domain>`, `whois <domain>` — and consolidates the raw
+JSON stdout into a single `osint-suite` ToolResult
+(`<OUTDIR>/osint_result.json` + `.sha256`).
+
+Zero simulation: a missing/failed binary is recorded as `ran: false` with an
+error and yields no findings. The adapter side (`normalizeOsint` in
+`packages/adapters/src/osint.ts`) maps the evidence to `OSINT-DMARC-MISSING`
+(HIGH), `OSINT-DMARC-PERMISSIVE` (MEDIUM), `OSINT-SUBDOMAIN-TAKEOVER`
+(CRITICAL), `OSINT-EXPOSED-STAGING` (MEDIUM), and `OSINT-DOMAIN-EXPIRING`
+(MEDIUM).
 
 ## Tests
 

@@ -28,7 +28,12 @@
  * - Ports:      `{ openPorts | ports: Array<number | { port, state?, service? }> }`
  * - Errors:     `{ errorDisclosure: true, errorSample?: string }`
  */
-import { createHash } from 'node:crypto';
+import {
+  fingerprintFor,
+  redactSecrets,
+  type DraftFinding,
+} from './primitives';
+import { OSINT_RULE_CATALOG, parseOsintEvidence } from './osint';
 import {
   ToolResultSchema,
   type FindingCategory,
@@ -37,123 +42,12 @@ import {
   type ToolResult,
 } from '@shipsafe/shared';
 
-// ---------------------------------------------------------------------------
-// Fingerprint
-// ---------------------------------------------------------------------------
-
-/** Stable 16-hex-char fingerprint: sha256(target|category|ruleId|title). */
-export function fingerprintFor(
-  target: string,
-  category: string,
-  ruleId: string,
-  title: string,
-): string {
-  return createHash('sha256')
-    .update(`${target}|${category}|${ruleId}|${title}`)
-    .digest('hex')
-    .slice(0, 16);
-}
+export { fingerprintFor, redactSecrets } from './primitives';
+export type { DraftFinding } from './primitives';
 
 // ---------------------------------------------------------------------------
-// Secret redaction (applied to all finding evidence before persistence)
+// Rule catalog
 // ---------------------------------------------------------------------------
-
-/** Object keys whose string values are secrets and must not be persisted. */
-const SENSITIVE_KEY =
-  /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[_-]?key|.*token.*|.*secret.*|passwd|password|pwd|.*credential.*|private[_-]?key|session[_-]?id|session[_-]?token|auth[_-]?token)$/i;
-
-/** `[name, value]` pairs (e.g. cookie jars) whose value must be redacted. */
-const SENSITIVE_PAIR_NAME = /cookie|session|token|auth|secret|key|password/i;
-
-/** String-level secret patterns -> replacement. */
-const STRING_PATTERNS: Array<[RegExp, string]> = [
-  // Authorization / Proxy-Authorization headers (any scheme incl. Bearer).
-  [/(authorization\s*:\s*(?:bearer\s+)?)[^\s"';,]+/gi, '$1[REDACTED]'],
-  [/(proxy-authorization\s*:\s*(?:bearer\s+)?)[^\s"';,]+/gi, '$1[REDACTED]'],
-  // Bare Bearer tokens.
-  [/(bearer\s+)[A-Za-z0-9\-._~+/=]+/gi, '$1[REDACTED]'],
-  // key=value / key: value secret assignments in text.
-  [
-    /((?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|secret|private[_-]?key|password|passwd|pwd)\s*[:=]\s*["']?)([^"'\s;,}]+)/gi,
-    '$1[REDACTED]',
-  ],
-  // Query-string / fragment secrets (?token=abc&...).
-  [/([?&](?:token|key|secret|password|auth|sessionid)=)[^&\s"'<]+/gi, '$1[REDACTED]'],
-  // URI-embedded credentials (postgres://user:pass@host, https://user:pass@host).
-  [/(\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@?#]+:)([^@\s/?#"']+)(@)/gi, '$1[REDACTED]$3'],
-  // Set-Cookie response lines: keep the cookie name, redact the value.
-  [/(set-cookie\s*:\s*[^\s=;]+=\s*)([^;\r\n]+)/gi, '$1[REDACTED]'],
-];
-
-function redactString(s: string): string {
-  let out = s;
-  for (const [re, replacement] of STRING_PATTERNS) {
-    re.lastIndex = 0;
-    out = out.replace(re, replacement);
-  }
-  return out;
-}
-
-/**
- * Deep-clone `value`, replacing secret material with `[REDACTED]`.
- * Handles nested objects/arrays, secret-named keys, Bearer/secret string
- * patterns, Set-Cookie lines, and Cookie-header value lists.
- */
-export function redactSecrets<T>(value: T): T {
-  if (typeof value === 'string') return redactString(value) as T;
-  if (Array.isArray(value)) {
-    return value.map((item) => redactSecrets(item)) as T;
-  }
-  if (value !== null && typeof value === 'object') {
-    if (value instanceof Date || value instanceof RegExp) return value;
-    const obj = value as Record<string, unknown>;
-    // `{ name, value }` pairs such as cookie-jar entries: redact by name.
-    if (
-      typeof obj['name'] === 'string' &&
-      typeof obj['value'] === 'string' &&
-      SENSITIVE_PAIR_NAME.test(obj['name'] as string)
-    ) {
-      return { ...obj, value: '[REDACTED]' } as T;
-    }
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(obj)) {
-      if (SENSITIVE_KEY.test(key)) {
-        if (typeof entry === 'string') {
-          if (/cookie/i.test(key)) {
-            out[key] = entry.replace(/=([^;,\s]+)/g, '=[REDACTED]');
-          } else {
-            const redacted = redactString(entry);
-            out[key] = redacted === entry ? '[REDACTED]' : redacted;
-          }
-        } else if (entry !== null && typeof entry === 'object') {
-          out[key] = redactSecrets(entry);
-        } else {
-          out[key] = entry;
-        }
-      } else {
-        out[key] = redactSecrets(entry);
-      }
-    }
-    return out as T;
-  }
-  return value;
-}
-
-// ---------------------------------------------------------------------------
-// Internal draft type + rule catalog
-// ---------------------------------------------------------------------------
-
-interface DraftFinding {
-  ruleId: string;
-  title: string;
-  description: string;
-  severity: Severity;
-  category: FindingCategory;
-  cwe: string;
-  owasp: string;
-  remediation: string;
-  evidence: unknown;
-}
 
 export interface RuleMeta {
   ruleId: string;
@@ -161,7 +55,8 @@ export interface RuleMeta {
   severity: Severity;
   category: FindingCategory;
   cwe: string;
-  owasp: string;
+  /** OWASP Top 10 reference. Omitted when no Top 10 category honestly applies. */
+  owasp?: string;
 }
 
 /**
@@ -199,6 +94,7 @@ export const RULE_CATALOG: RuleMeta[] = [
   { ruleId: 'PORT-FTP-EXPOSED', label: 'FTP port reachable', severity: 'MEDIUM', category: 'web', cwe: 'CWE-319', owasp: 'A05:2021' },
   { ruleId: 'PORT-REMOTE-ADMIN-EXPOSED', label: 'Remote-admin port reachable', severity: 'MEDIUM', category: 'web', cwe: 'CWE-200', owasp: 'A05:2021' },
   { ruleId: 'ERROR-DISCLOSURE', label: 'Verbose error disclosure', severity: 'MEDIUM', category: 'logging', cwe: 'CWE-209', owasp: 'A05:2021' },
+  ...OSINT_RULE_CATALOG,
 ];
 
 // ---------------------------------------------------------------------------
@@ -1103,6 +999,7 @@ export function normalize(toolResults: ToolResult[], target: string): Normalized
     drafts.push(...parseSensitivePaths(evidence));
     drafts.push(...parsePorts(evidence));
     drafts.push(...parseErrorDisclosure(evidence));
+    drafts.push(...parseOsintEvidence(evidence));
   }
 
   const seen = new Set<string>();
@@ -1120,7 +1017,7 @@ export function normalize(toolResults: ToolResult[], target: string): Normalized
       description: draft.description,
       severity: draft.severity,
       cwe: draft.cwe,
-      owasp: draft.owasp,
+      ...(draft.owasp ? { owasp: draft.owasp } : {}),
       evidence: redactSecrets(draft.evidence),
       remediation: draft.remediation,
       confidence: 'confirmed',

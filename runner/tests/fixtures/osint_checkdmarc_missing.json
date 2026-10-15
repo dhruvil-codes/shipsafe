@@ -1,0 +1,1 @@
+{"domain": "example-test.invalid", "spf": {"record": "v=spf1 -all", "valid": true}, "dmarc": null, "note": "no DMARC record published"}
