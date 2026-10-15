@@ -1,0 +1,21 @@
+{
+  "name": "critical scan (one confirmed critical, rest clean)",
+  "assessedControls": 24,
+  "applicableControls": 24,
+  "findings": [
+    {
+      "fingerprint": "d1b2c3d4e5f60718",
+      "target": "https://app.example.com",
+      "category": "source",
+      "ruleId": "SENSITIVE-ENV-EXPOSED",
+      "title": "Environment file exposed at /.env",
+      "description": ".env readable.",
+      "severity": "CRITICAL",
+      "cwe": "CWE-538",
+      "owasp": "A05:2021",
+      "evidence": { "path": "/.env", "status": 200 },
+      "remediation": "Block and rotate.",
+      "confidence": "confirmed"
+    }
+  ]
+}

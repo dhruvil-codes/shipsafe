@@ -1,0 +1,21 @@
+{
+  "target": "https://clean.example.com",
+  "toolResults": [
+    {
+      "tool": "sensitive-paths",
+      "toolVersion": "0.9.1",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:01:00.000Z",
+      "durationMs": 60000,
+      "checksAttempted": 24,
+      "evidence": {
+        "probes": [
+          { "path": "/.env", "status": 404, "exposed": false },
+          { "path": "/.git/config", "status": 404, "exposed": false },
+          { "path": "/server-status", "status": 403, "exposed": false }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "target": "https://healthy.example.com",
+  "toolResults": [
+    {
+      "tool": "testssl",
+      "toolVersion": "3.2",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:02:00.000Z",
+      "durationMs": 120000,
+      "checksAttempted": 42,
+      "evidence": {
+        "cert": {
+          "subject": "CN=healthy.example.com",
+          "issuer": "CN=Public CA",
+          "validTo": "2030-06-01T00:00:00.000Z"
+        },
+        "protocols": ["TLS 1.2", "TLS 1.3"],
+        "weakCiphers": []
+      }
+    }
+  ]
+}

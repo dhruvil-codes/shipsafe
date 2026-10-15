@@ -1,0 +1,12 @@
+{
+  "fingerprint": "not-a-fingerprint",
+  "target": "",
+  "category": "network",
+  "ruleId": "",
+  "title": "",
+  "description": "",
+  "severity": "URGENT",
+  "evidence": null,
+  "remediation": "",
+  "confidence": "maybe"
+}

@@ -1,0 +1,8 @@
+{
+  "overall": 83,
+  "grade": "B",
+  "coverage": 66.7,
+  "capped": false,
+  "categoryScores": { "auth": 80, "web": 92 },
+  "scoringVersion": "v1.0"
+}

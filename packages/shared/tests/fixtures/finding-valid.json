@@ -1,0 +1,14 @@
+{
+  "fingerprint": "abcdef0123456789",
+  "target": "https://app.example.com",
+  "category": "web",
+  "ruleId": "HEADER-HSTS-MISSING",
+  "title": "Missing Strict-Transport-Security header",
+  "description": "No HSTS header observed.",
+  "severity": "MEDIUM",
+  "cwe": "CWE-319",
+  "owasp": "A05:2021",
+  "evidence": { "header": "strict-transport-security", "observed": null },
+  "remediation": "Send an HSTS header.",
+  "confidence": "confirmed"
+}

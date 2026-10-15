@@ -1,0 +1,6 @@
+{
+  "name": "clean scan (all assessed, nothing found)",
+  "assessedControls": 24,
+  "applicableControls": 24,
+  "findings": []
+}

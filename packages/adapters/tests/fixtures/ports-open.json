@@ -1,0 +1,17 @@
+{
+  "target": "https://ports.example.com",
+  "toolResults": [
+    {
+      "tool": "ports",
+      "toolVersion": "2.0.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:03:00.000Z",
+      "durationMs": 180000,
+      "checksAttempted": 12,
+      "evidence": {
+        "openPorts": [443, 5432, 6379, 23, 22]
+      }
+    }
+  ]
+}

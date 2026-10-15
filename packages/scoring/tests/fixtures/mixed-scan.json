@@ -1,0 +1,49 @@
+{
+  "name": "mixed baseline scan",
+  "assessedControls": 12,
+  "applicableControls": 20,
+  "findings": [
+    {
+      "fingerprint": "a1b2c3d4e5f60718",
+      "target": "https://app.example.com",
+      "category": "auth",
+      "ruleId": "COOKIE-NO-SECURE",
+      "title": "Cookie \"sess\" missing Secure attribute",
+      "description": "Session cookie without Secure.",
+      "severity": "HIGH",
+      "cwe": "CWE-614",
+      "owasp": "A05:2021",
+      "evidence": { "cookie": "sess" },
+      "remediation": "Set Secure.",
+      "confidence": "confirmed"
+    },
+    {
+      "fingerprint": "b1b2c3d4e5f60718",
+      "target": "https://app.example.com",
+      "category": "api",
+      "ruleId": "CORS-WILDCARD",
+      "title": "CORS allows any origin",
+      "description": "Wildcard CORS.",
+      "severity": "MEDIUM",
+      "cwe": "CWE-942",
+      "owasp": "A01:2021",
+      "evidence": { "allowOrigin": "*" },
+      "remediation": "Restrict origins.",
+      "confidence": "confirmed"
+    },
+    {
+      "fingerprint": "c1b2c3d4e5f60718",
+      "target": "https://app.example.com",
+      "category": "web",
+      "ruleId": "HEADER-XCTO-MISSING",
+      "title": "Missing X-Content-Type-Options header",
+      "description": "No nosniff.",
+      "severity": "LOW",
+      "cwe": "CWE-693",
+      "owasp": "A05:2021",
+      "evidence": { "header": "x-content-type-options" },
+      "remediation": "Send nosniff.",
+      "confidence": "confirmed"
+    }
+  ]
+}

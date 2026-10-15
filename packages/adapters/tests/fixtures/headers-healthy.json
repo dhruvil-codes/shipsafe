@@ -1,0 +1,27 @@
+{
+  "target": "https://hardened.example.com",
+  "toolResults": [
+    {
+      "tool": "headers",
+      "toolVersion": "1.4.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:00:05.000Z",
+      "durationMs": 5000,
+      "checksAttempted": 9,
+      "evidence": {
+        "headers": {
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Server": "nginx"
+        },
+        "cookies": [
+          { "name": "sess", "secure": true, "httpOnly": true, "sameSite": "Lax" }
+        ],
+        "cors": { "allowOrigin": "https://hardened.example.com", "allowCredentials": true }
+      }
+    }
+  ]
+}

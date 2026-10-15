@@ -1,0 +1,23 @@
+{
+  "target": "https://weak.example.com",
+  "toolResults": [
+    {
+      "tool": "tls",
+      "toolVersion": "3.2",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:02:00.000Z",
+      "durationMs": 120000,
+      "checksAttempted": 42,
+      "evidence": {
+        "cert": {
+          "subject": "CN=weak.example.com",
+          "issuer": "CN=Public CA",
+          "validTo": "2030-06-01T00:00:00.000Z"
+        },
+        "protocols": ["TLS 1.0", "TLS 1.1", "TLS 1.2"],
+        "ciphers": ["ECDHE-RSA-AES128-GCM-SHA256", "RC4-SHA", "DES-CBC3-SHA"]
+      }
+    }
+  ]
+}

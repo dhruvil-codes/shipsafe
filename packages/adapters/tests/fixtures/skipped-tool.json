@@ -1,0 +1,23 @@
+{
+  "target": "https://skipped.example.com",
+  "toolResults": [
+    {
+      "tool": "testssl",
+      "toolVersion": "3.2",
+      "status": "skipped",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:00:00.000Z",
+      "durationMs": 0,
+      "checksAttempted": 0,
+      "evidence": {
+        "cert": {
+          "subject": "CN=skipped.example.com",
+          "issuer": "CN=skipped.example.com",
+          "validTo": "2020-01-01T00:00:00.000Z",
+          "expired": true
+        }
+      },
+      "error": "profile excludes tls checks"
+    }
+  ]
+}

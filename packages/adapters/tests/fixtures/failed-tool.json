@@ -1,0 +1,21 @@
+{
+  "target": "https://crashed.example.com",
+  "toolResults": [
+    {
+      "tool": "headers",
+      "toolVersion": "1.4.0",
+      "status": "failed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:00:01.000Z",
+      "durationMs": 1000,
+      "checksAttempted": 0,
+      "evidence": {
+        "headers": {
+          "Server": "nginx/1.25.3",
+          "Content-Type": "text/html"
+        }
+      },
+      "error": "connection refused"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "target": "https://bare.example.com",
+  "toolResults": [
+    {
+      "tool": "headers",
+      "toolVersion": "1.4.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:00:05.000Z",
+      "durationMs": 5000,
+      "checksAttempted": 9,
+      "evidence": {
+        "headers": {
+          "Server": "nginx/1.25.3",
+          "Content-Type": "text/html",
+          "X-Powered-By": "Express"
+        },
+        "cookies": [
+          { "name": "sess", "secure": false, "httpOnly": false }
+        ],
+        "cors": { "allowOrigin": "*", "allowCredentials": true }
+      }
+    }
+  ]
+}

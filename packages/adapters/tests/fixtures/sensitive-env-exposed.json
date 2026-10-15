@@ -1,0 +1,23 @@
+{
+  "target": "https://leaky.example.com",
+  "toolResults": [
+    {
+      "tool": "sensitive-paths",
+      "toolVersion": "0.9.1",
+      "status": "passed",
+      "startedAt": "2026-10-15T00:00:00.000Z",
+      "endedAt": "2026-10-15T00:01:00.000Z",
+      "durationMs": 60000,
+      "checksAttempted": 24,
+      "evidence": {
+        "probes": [
+          { "path": "/.env", "status": 200, "exposed": true },
+          { "path": "/.git/config", "status": 200, "exposed": true },
+          { "path": "/wp-config.php.bak", "status": 200, "exposed": true },
+          { "path": "/readme.html", "status": 200, "exposed": true },
+          { "path": "/.env.example", "status": 404, "exposed": false }
+        ]
+      }
+    }
+  ]
+}
