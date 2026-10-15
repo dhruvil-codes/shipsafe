@@ -10,3 +10,4 @@ dashboard.html
 .env
 .env*.local
 !.env.example
+.taste-skill/
