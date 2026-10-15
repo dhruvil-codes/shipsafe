@@ -27,16 +27,27 @@
 ## 3. Pending Actions & Next Steps
 - [x] Define technology stack and scaffolding for core services / UI.
 - [x] Parallel build Agents 1-4 merged to main with zero conflicts.
-- [ ] Configure linting, formatting, and CI workflows.
-- [ ] Wire orchestration contracts to @shipsafe/shared (remove local TODO copies in orchestration + api/_lib).
-- [ ] Live InstaBox E2E against https://example.com with real INSTABOX_API_KEY.
+- [x] Wire orchestration contracts to @shipsafe/shared (removed local copies in orchestration + api/_lib).
+- [x] Migrate monorepo and scripts to Bun (`bun.lock`, `bun test`, `bun run build`).
+- [x] Cleaned up temporary `D:\shipsafe-agent-*` worktree directories from disk.
+- [ ] Deploy real in-VM OSINT engine (`runner/osint_engine.py` - crt.sh subdomains, DMARC/SPF, DNS takeover).
+- [ ] Wire single-screen terminal UI mode.
+- [ ] Live InstaBox E2E against target with real INSTABOX_API_KEY.
 
-### [2026-10-15] Parallel Build — Agents 1-4 merged
-- **Orchestrator**: scaffolded TS monorepo root (pnpm workspaces, tsconfig.base, apps/web shell), created 4 worktrees/branches, spawned 4 parallel agents.
-- **Agent 1** (`feat/agent-1-instabox-runner`, 903472a): `packages/sandbox` (SandboxProvider, Instabox + Fake providers, quota 5 VMs/4 execs, streaming, S-09/S-19) + `runner/` (shipsafe-runner.sh + scanner.py, scan_result.json with ToolResult evidence). 15/15 vitest + 2/2 python unittest pass.
-- **Agent 2** (`feat/agent-2-scoring-engines`, bf835bd): `packages/shared` (Zod contracts v1.0), `packages/adapters` (30-rule normalize, fingerprint dedup, redactSecrets), `packages/scoring` (weighted v1.0, critical-cap 40, coverage, explainer). 50/50 vitest pass.
-- **Agent 3** (`feat/agent-3-backend-api`, 12c30db): `packages/db` (Drizzle pg schema + InMemoryScanStore), `packages/orchestration` (runScan QUEUED→COMPLETED, always-kill teardown, AbortSignal cancel), `apps/web/app/api` (POST scans with SSRF-guard + 5-slot quota, GET scan, SSE stream, POST cancel). 22/22 tests pass.
-- **Agent 4** (`feat/agent-4-frontend-ui`, c1256b7): dark #0a0a0c dashboard (ScanBar, TelemetryBar sbx_live hero, Terminal, Checklist, ScoreGauge, FindingCard, mocks), landing + /scan/[id] split-screen, Export JSON/Print. typecheck + build pass. Also fixed `apps/web/tsconfig.json` extends placement (TS5023).
-- **Merge sequence**: agent-2 → agent-1 → agent-3 → agent-4, all clean (2 fast-forward, 2 ort, zero conflicts).
-- **Post-merge verification on main**: `pnpm -r typecheck` 7/7 pass, `pnpm -r test` 91/91 pass (db 6, orchestration 5, sandbox 15, web 15, shared 12, adapters 23, scoring 15), `runner` python 2/2 OK, `pnpm --filter @shipsafe/web build` pass after fixing Next 15 route `params: Promise<{id}>` types in 3 API routes.
-- **E2E status**: `pnpm dev` + UI scan flow wired to /api/scans + SSE with mock fallbacks; live InstaBox E2E pending real API key.
+---
+
+## 4. Bun Migration & Contract Wiring [2026-10-15]
+- **Standardized on Bun (`v1.3.5`)**:
+  - Root `package.json` updated with native Bun `workspaces: ["packages/*", "apps/*"]`.
+  - Generated `bun.lock`.
+  - Scripts configured for `bun --filter` (`bun run test`, `bun run typecheck`, `bun run build`, `bun run dev`).
+- **Wired Canonical Contracts**:
+  - `packages/orchestration/src/contracts.ts` and `apps/web/app/api/_lib/contracts.ts` now directly re-export from `@shipsafe/shared`.
+  - Fixed Next.js 15 `Promise<{ id: string }>` route params typing in `apps/web/app/api/__tests__/api.test.ts`.
+- **Verification Results**:
+  - `bun --filter "*" typecheck`: **7/7 packages passed (0 errors)**.
+  - `bun run test`: **91/91 unit/integration tests passed in 7.17s**.
+  - `python -m unittest discover`: **2/2 runner tests passed**.
+  - `bun run build`: **Next.js 15 production build passed cleanly**.
+  - Deleted temporary worktree folders (`D:\shipsafe-agent-*`) to free disk space.
+
