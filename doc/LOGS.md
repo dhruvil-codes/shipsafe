@@ -72,3 +72,21 @@
   `bun run build` clean, `python -m unittest discover -s runner/tests` 8 tests OK (1 POSIX-only stub test
   skips on Windows). One parser bug caught by tests and fixed (explicit `"dmarc": null` → MISSING).
 
+---
+
+## 6. Single-Screen Terminal UI [2026-10-15] (branch `feat/single-screen-terminal-ui`)
+- **Home page is now the terminal** (`apps/web/app/page.tsx`): one window, no redirects. Reactive
+  IDLE → SCANNING → COMPLETED state machine with a New Scan reset. Old marketing landing
+  (`app/(app)/page.tsx`) removed to avoid a `/` route conflict; `/scan/[id]` deep links kept.
+- **Components** (`apps/web/components/`): `TerminalWindow` (mac dots, InstaBox VM badge, pulse),
+  `CommandBar` (`$ shipsafe scan [url]`, RUN button, 3 demo chips, https auto-prepend + scheme-spoof guard),
+  `TerminalStream` (auto-scroll console), `ScanChecklist` (5 engines, pending/running/passed/warning),
+  `AIFixPromptCard` (copy-to-clipboard AI prompt), `FindingsViewer` (web / OSINT / raw-JSON tabs, score gauge,
+  severity groups, subdomains table, DMARC/SPF + WHOIS cards, JSON download).
+- **Flow**: POST `/api/scans {url}` → EventSource `/api/scans/:id/stream` (JSON envelope + legacy control
+  lines + `done` event) → GET `/api/scans/:id` → COMPLETED. API unreachable at any point → clearly-labeled
+  offline demo replay. New `lib/scan-flow.ts` holds all pure logic (15 vitest cases).
+- **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` 120/120 (web 30 incl. 15 new),
+  `bun run build` clean with `/` prerendered. One lib bug caught by tests and fixed (ftp:// spoof bypassed
+  auto-prepend). Stale `.next` cache cleared after the route deletion.
+

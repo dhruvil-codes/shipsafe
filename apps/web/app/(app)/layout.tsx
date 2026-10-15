@@ -17,7 +17,7 @@ export default function AppGroupLayout({
             ShipSafe
           </a>
           <nav className="ss-nav-links" aria-label="Primary">
-            <a href="/">New scan</a>
+            <a href="/">Terminal</a>
             <a href="/scan/demo">Sample report</a>
           </nav>
         </div>
