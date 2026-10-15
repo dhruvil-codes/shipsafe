@@ -7,3 +7,6 @@ dist/
 .claude/
 .devin/
 dashboard.html
+.env
+.env*.local
+!.env.example
