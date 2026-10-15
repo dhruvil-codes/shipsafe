@@ -2,13 +2,17 @@
   "name": "shipsafe",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "bun@1.3.5",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "pnpm --filter ./apps/web dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "dev": "bun --filter @shipsafe/web dev",
+    "build": "bun --filter \"*\" build",
+    "test": "bun --filter \"*\" test",
+    "typecheck": "bun --filter \"*\" typecheck",
+    "lint": "bun --filter \"*\" lint"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

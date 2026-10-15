@@ -84,7 +84,7 @@ describe("GET /api/scans/:id", () => {
   it("returns scan details with score and findings", async () => {
     const { body } = await createValidScan();
     const res = await getScan(new Request("http://localhost/"), {
-      params: { id: body.scanId },
+      params: Promise.resolve({ id: body.scanId }),
     });
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
@@ -100,7 +100,7 @@ describe("GET /api/scans/:id", () => {
 
   it("returns 404 for unknown scans", async () => {
     const res = await getScan(new Request("http://localhost/"), {
-      params: { id: "scn_missing" },
+      params: Promise.resolve({ id: "scn_missing" }),
     });
     expect(res.status).toBe(404);
   });
@@ -112,7 +112,7 @@ describe("SSE /api/scans/:id/stream", () => {
   it("emits stored events, log lines and a done terminator", async () => {
     const { body } = await createValidScan();
     const res = await streamScan(new Request("http://localhost/"), {
-      params: { id: body.scanId },
+      params: Promise.resolve({ id: body.scanId }),
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/event-stream");
@@ -124,7 +124,7 @@ describe("SSE /api/scans/:id/stream", () => {
 
   it("returns 404 for unknown scans", async () => {
     const res = await streamScan(new Request("http://localhost/"), {
-      params: { id: "scn_missing" },
+      params: Promise.resolve({ id: "scn_missing" }),
     });
     expect(res.status).toBe(404);
   });
@@ -136,7 +136,7 @@ describe("POST /api/scans/:id/cancel", () => {
   it("cancels a queued scan and frees its quota slot", async () => {
     const { body } = await createValidScan();
     const res = await cancelScan(new Request("http://localhost/", { method: "POST" }), {
-      params: { id: body.scanId },
+      params: Promise.resolve({ id: body.scanId }),
     });
     expect(res.status).toBe(200);
     const data = (await res.json()) as { scanId: string; status: string };
@@ -144,7 +144,7 @@ describe("POST /api/scans/:id/cancel", () => {
 
     const detail = (await (
       await getScan(new Request("http://localhost/"), {
-        params: { id: body.scanId },
+        params: Promise.resolve({ id: body.scanId }),
       })
     ).json()) as { scan: { status: string } };
     expect(detail.scan.status).toBe("CANCELLED");
@@ -161,7 +161,7 @@ describe("POST /api/scans/:id/cancel", () => {
 
   it("returns 404 for unknown scans", async () => {
     const res = await cancelScan(new Request("http://localhost/", { method: "POST" }), {
-      params: { id: "scn_missing" },
+      params: Promise.resolve({ id: "scn_missing" }),
     });
     expect(res.status).toBe(404);
   });
