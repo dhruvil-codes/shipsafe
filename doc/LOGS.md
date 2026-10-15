@@ -116,8 +116,10 @@
 - **Adapter fix**: DMARC policy now read from checkdmarc `tags.p.value` (no top-level `policy` field).
 - **Live proof** (real VM `m_agqt6bou4ov76f236kutoorc7e`, Debian): tools installed (whois, checkdmarc,
   subfinder v2.17.0, httpx v1.12.0, subzy via go), full `runLiveScan` vs `https://example.com` → exit 0,
-  4/4 baseline + 5/5 OSINT stages executed for real. Verification of genuine findings from the fixed
-  runners was re-run live (see follow-up entry if appended).
+  4/4 baseline + 5/5 OSINT stages executed for real. Final verification run (fixed runners): exit 0,
+  5 genuine findings (HEADER-CSP/HSTS/FRAME/XCTO/REFERRER-MISSING on example.com), score 80, coverage 100,
+  uncapped. httpx returned 0 live hosts (25k+ CT-spam names mostly NXDOMAIN — honest empty, no invented
+  findings); whois expiry now parses (2027-08-13).
 - **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` 134/134 (sandbox 27 incl. 12 new live,
   web 31, adapters 38), `bun run build` clean, `python -m unittest discover -s runner/tests` green.
 
