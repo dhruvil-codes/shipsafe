@@ -1,0 +1,53 @@
+{
+  "target": "http://127.0.0.1:9",
+  "scannedAt": "2026-10-15T12:00:00.000Z",
+  "tools": [
+    {
+      "tool": "tls-probe",
+      "toolVersion": "0.1.0",
+      "status": "skipped",
+      "startedAt": "2026-10-15T12:00:00.000Z",
+      "endedAt": "2026-10-15T12:00:01.000Z",
+      "durationMs": 42,
+      "checksAttempted": 0,
+      "evidence": { "target": "http://127.0.0.1:9", "exception": "ConnectionRefusedError: refused" },
+      "error": "ConnectionRefusedError: refused"
+    },
+    {
+      "tool": "headers",
+      "toolVersion": "0.1.0",
+      "status": "failed",
+      "startedAt": "2026-10-15T12:00:01.000Z",
+      "endedAt": "2026-10-15T12:00:01.100Z",
+      "durationMs": 35,
+      "checksAttempted": 0,
+      "evidence": { "url": "http://127.0.0.1:9", "exception": "URLError: refused" },
+      "error": "URLError: refused"
+    },
+    {
+      "tool": "sensitive-files",
+      "toolVersion": "0.1.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T12:00:01.100Z",
+      "endedAt": "2026-10-15T12:00:01.200Z",
+      "durationMs": 60,
+      "checksAttempted": 6,
+      "evidence": {
+        "base": "http://127.0.0.1:9",
+        "probes": [
+          { "path": "/.env", "url": "http://127.0.0.1:9/.env", "httpStatus": null, "exposed": false, "error": "refused" }
+        ]
+      }
+    },
+    {
+      "tool": "ports",
+      "toolVersion": "0.1.0",
+      "status": "passed",
+      "startedAt": "2026-10-15T12:00:01.200Z",
+      "endedAt": "2026-10-15T12:00:01.300Z",
+      "durationMs": 55,
+      "checksAttempted": 5,
+      "evidence": { "host": "127.0.0.1", "probes": [{ "port": 80, "open": false, "banner": "" }] }
+    }
+  ]
+}
