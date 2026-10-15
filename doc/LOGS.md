@@ -123,3 +123,26 @@
 - **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` 134/134 (sandbox 27 incl. 12 new live,
   web 31, adapters 38), `bun run build` clean, `python -m unittest discover -s runner/tests` green.
 
+---
+
+## 8. Editorial Landing Redesign [2026-10-15] (branch `feat/light-editorial-landing`)
+- **Design system first** (`apps/web/styles/tokens.css`): one cream ground, one ink, one black action,
+  severity hues for findings only, serif display / sans text / mono-for-code. All components reference
+  tokens only. `design-taste-frontend` skill drove structure; its house rules that contradict the
+  approved reference (pill badge, blueprint frame lines, mono labels, cream ground) were kept
+  deliberately as brand constraints and passed to the inspector via `--allow`.
+- **Interactive dither background**: `lib/dither.ts` (Bayer-4 field + pointer lens, 4 vitest cases) with
+  a dependency-free canvas component, DPR-aware, reduced-motion static fallback, pointer-events none.
+- **One-page landing** (`app/page.tsx`): nav, badge pill, serif hero, black scan console with preset
+  chips, in-flow live results (stream + 5-engine checklist + score + AI prompt + findings/OSINT/raw
+  tabs), how-it-works, engines with real repo links, guarantees, footer. Same proven scan state machine
+  and `/api` wiring; old dark components untouched for `/scan/demo`.
+- **Honest exhibit**: `LiveExhibit` shows the verified example.com run (score 80, 5 real findings,
+  `data-ui` fragment) instead of stock photography.
+- **Inspector verdict**: headline 2 lines at all widths, body 16px, contrast fixed (faint darkened to
+  #6e6a5c), motion layer added (hero entrance, scroll reveals, control feedback). Remaining deviations
+  documented: photo floor (reference is photo-free; product UI is the imagery), system type stacks
+  (offline-safe, no webfonts), results-panel outline (product UI), scan-result micro-labels, no footage.
+- **Verification**: `bun --filter "*" typecheck` 7/7, `bun run test` green (web 35 incl. dither),
+  `bun run build` clean with `/` prerendered; screenshots reviewed at 1440/768/390.
+

@@ -1,0 +1,51 @@
+/**
+ * ShipSafe design system — "editorial blueprint" language.
+ *
+ * Single source of truth for the whole page. Every component below references
+ * these tokens only: one cream ground, one ink, one black action colour,
+ * severity hues reserved for findings, two typefaces (editorial serif for
+ * display, system sans for text, system mono for code/log only).
+ *
+ * Roles:
+ *  --ds-ground / --ds-ground-2 ... page field and one tone step (no lines)
+ *  --ds-ink / --ds-ink-soft / --ds-faint ... text hierarchy (body in full ink)
+ *  --ds-action ... the one action colour (near-black), buttons + command bar
+ *  --ds-card ... raised surfaces on the ground
+ *  --ds-good / --ds-warn / --ds-bad / --ds-info ... findings + status only
+ */
+:root {
+  --ds-ground: #f4f1ea;
+  --ds-ground-2: #eae6da;
+  --ds-card: #fbf9f4;
+  --ds-ink: #191712;
+  --ds-ink-soft: #4c483d;
+  --ds-faint: #6e6a5c;
+  --ds-line: #d9d3c2;
+  --ds-action: #17150f;
+  --ds-action-ink: #f4f1ea;
+  --ds-good: #1e7e46;
+  --ds-warn: #b3541e;
+  --ds-bad: #b3261e;
+  --ds-info: #4c483d;
+
+  --ds-display: "Iowan Old Style", "Palatino Linotype", Palatino, Charter,
+    Georgia, "Times New Roman", serif;
+  --ds-text: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+    Arial, sans-serif;
+  --ds-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ds-max: 1180px;
+  --ds-pad: 28px;
+  --ds-radius-bar: 14px;
+  --ds-radius-pill: 999px;
+  --ds-radius-card: 10px;
+
+  --ds-section-gap: 120px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --ds-pad: 18px;
+    --ds-section-gap: 72px;
+  }
+}
