@@ -146,6 +146,29 @@ class TestWhoisPatterns(unittest.TestCase):
             "2027-08-13T04:00:00Z",
         )
 
+    def test_stage_whois_extracts_all_fields(self):
+        # Regression: single-group patterns crashed group(2) extraction.
+        if os.name != "posix":
+            self.skipTest("stub executables require POSIX exec")
+        with tempfile.TemporaryDirectory() as bindir, tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(FIXTURES, "osint_whois.txt"), encoding="utf-8") as fh:
+                whois_text = fh.read()
+            stub = os.path.join(bindir, "whois")
+            with open(stub, "w", encoding="utf-8") as fh:
+                fh.write("#!/usr/bin/env python3\nimport sys\n"
+                         f"sys.stdout.write({whois_text!r})\n")
+            os.chmod(stub, os.stat(stub).st_mode | stat.S_IEXEC)
+            old_path = os.environ.get("PATH", "")
+            os.environ["PATH"] = bindir + os.pathsep + tempfile.gettempdir()
+            try:
+                section = engine.stage_whois("example-test.invalid")
+            finally:
+                os.environ["PATH"] = old_path
+            self.assertTrue(section["ran"])
+            self.assertEqual(section["registrar"], "Example Registrar, Inc.")
+            self.assertEqual(section["expiryDate"], "2027-03-14T00:00:00Z")
+            self.assertIsInstance(section["daysUntilExpiry"], int)
+
 
 class TestTargetCap(unittest.TestCase):
     def test_httpx_input_is_capped_with_totals_recorded(self):

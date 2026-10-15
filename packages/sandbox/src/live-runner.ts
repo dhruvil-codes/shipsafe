@@ -173,7 +173,7 @@ export interface LiveStdoutEvents {
 
 export interface RunLiveScanOpts {
   pollIntervalMs?: number;
-  /** Wall-clock budget for the whole scan (default 9 min, under the 10-min exec ceiling). */
+  /** Wall-clock budget (default 9.5 min, under the 10-min exec ceiling). */
   timeoutMs?: number;
   signal?: AbortSignal;
   sleep?: (ms: number) => Promise<void>;
@@ -250,7 +250,7 @@ export async function runLiveScan(
   opts: RunLiveScanOpts = {},
 ): Promise<LiveScanResult> {
   const pollIntervalMs = opts.pollIntervalMs ?? 1500;
-  const timeoutMs = opts.timeoutMs ?? 540_000;
+  const timeoutMs = opts.timeoutMs ?? 570_000;
   const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const quoted = shellQuote(targetUrl);
   const base = opts.remoteBase ?? (await resolveRemoteBase(sbx));

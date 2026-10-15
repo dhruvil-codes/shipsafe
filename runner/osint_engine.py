@@ -43,7 +43,7 @@ TOOL_VERSION = "1.0.0"
 # Per-tool wall-clock budgets (the InstaBox exec ceiling is 10 minutes total).
 TIMEOUTS = {
     "subfinder": 240,
-    "httpx": 240,
+    "httpx": 400,
     "subzy": 180,
     "checkdmarc": 60,
     "whois": 60,
@@ -185,6 +185,7 @@ def stage_httpx(subdomains: list, tmpdir: str) -> dict:
     argv = [
         binary or "httpx", "-l", targets_path, "-silent", "-json",
         "-tech-detect", "-status-code", "-title",
+        "-timeout", "10", "-retries", "1",
     ]
     if binary is None:
         return missing_section("httpx", argv, "binary not installed")
@@ -333,7 +334,9 @@ def stage_whois(domain: str) -> dict:
     section["text"] = text[:4000]
     for key, pattern in WHOIS_PATTERNS.items():
         match = pattern.search(text)
-        section[key] = match.group(2).strip()[:200] if match else None
+        # Single-group (registrar) and two-group (dated) patterns alike:
+        # the value is always the last group.
+        section[key] = match.groups()[-1].strip()[:200] if match else None
     expiry = section.get("expiryDate")
     days: int | None = None
     if isinstance(expiry, str):

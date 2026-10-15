@@ -13,8 +13,8 @@ import { ToolResultSchema, type ToolResult } from "@shipsafe/shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Full baseline + OSINT scan can run for minutes; allow a long stream. */
-export const maxDuration = 300;
+/** Full baseline + OSINT scan can run ~7 minutes; allow a long stream. */
+export const maxDuration = 600;
 
 type RouteContext = {
   params: Promise<{ id: string }>;
