@@ -103,21 +103,53 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
       if (offset > 1_000_000) throw new Error("Scanner output exceeded its limit");
       pending += chunk.data;
       const lines = pending.split("\n"); pending = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const value: unknown = JSON.parse(line);
-        const envelope = z.object({ type: z.string() }).passthrough().parse(value);
-        if (envelope.type === "report") { report = Report.parse(value); if (securityMode) validateSecurityReport(report, scan, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), authorization?.classes); finished = true; }
-        else if (envelope.type === "error") {
-          const failure = z.object({ type: z.literal("error"), code: z.enum(["SCOPE_REJECTED", "BASELINE_FAILED", "SECURITY_FAILED"]), reason: BaselineFailureReason.optional() }).safeParse(value);
-          throw new BaselineExecutionError(failure.success && failure.data.code === "SCOPE_REJECTED" ? "SCOPE_REJECTED" : "BASELINE_FAILED", failure.success ? failure.data.reason : undefined);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const jsonValues: unknown[] = [];
+        try {
+          jsonValues.push(JSON.parse(line));
+        } catch {
+          let depth = 0;
+          let start = -1;
+          let inString = false;
+          let escape = false;
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (escape) { escape = false; continue; }
+            if (char === "\\") { escape = true; continue; }
+            if (char === '"') { inString = !inString; continue; }
+            if (!inString) {
+              if (char === "{" || char === "[") {
+                if (depth === 0) start = i;
+                depth++;
+              } else if (char === "}" || char === "]") {
+                depth--;
+                if (depth === 0 && start !== -1) {
+                  try { jsonValues.push(JSON.parse(line.slice(start, i + 1))); } catch {}
+                  start = -1;
+                }
+              }
+            }
+          }
         }
-        else {
-          const event = z.object({ stage: z.string().max(80), message: z.string().max(16000), checkId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(), status: z.enum(["passed", "observation", "skipped"]).optional(), timestamp: z.string().datetime({ offset: true }).optional() }).safeParse(value);
-          if (event.success) {
-            const metadata = { ...(event.data.checkId ? { checkId: event.data.checkId } : {}), ...(event.data.status ? { status: event.data.status } : {}), ...(event.data.timestamp ? { timestamp: event.data.timestamp } : {}) };
-            if (Object.keys(metadata).length) emit(event.data.stage, event.data.message, metadata);
-            else emit(event.data.stage, event.data.message);
+        for (const value of jsonValues) {
+          const envelope = z.object({ type: z.string() }).passthrough().safeParse(value);
+          if (!envelope.success) continue;
+          if (envelope.data.type === "report") {
+            report = Report.parse(value);
+            if (securityMode) validateSecurityReport(report, scan, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), authorization?.classes);
+            finished = true;
+          } else if (envelope.data.type === "error") {
+            const failure = z.object({ type: z.literal("error"), code: z.enum(["SCOPE_REJECTED", "BASELINE_FAILED", "SECURITY_FAILED"]), reason: BaselineFailureReason.optional() }).safeParse(value);
+            throw new BaselineExecutionError(failure.success && failure.data.code === "SCOPE_REJECTED" ? "SCOPE_REJECTED" : "BASELINE_FAILED", failure.success ? failure.data.reason : undefined);
+          } else {
+            const event = z.object({ stage: z.string().max(80), message: z.string().max(16000), checkId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(), status: z.enum(["passed", "observation", "skipped"]).optional(), timestamp: z.string().datetime({ offset: true }).optional() }).safeParse(value);
+            if (event.success) {
+              const metadata = { ...(event.data.checkId ? { checkId: event.data.checkId } : {}), ...(event.data.status ? { status: event.data.status } : {}), ...(event.data.timestamp ? { timestamp: event.data.timestamp } : {}) };
+              if (Object.keys(metadata).length) emit(event.data.stage, event.data.message, metadata);
+              else emit(event.data.stage, event.data.message);
+            }
           }
         }
       }

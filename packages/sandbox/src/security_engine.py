@@ -7,6 +7,7 @@ import signal
 import ssl
 import subprocess
 import sys
+import threading
 import time
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin, urlsplit
@@ -493,9 +494,14 @@ def run(config, emit):
     return {"type": "report", "checks": checks, "findings": findings, "manifest": {"engine": "shipsafe-security", "version": VERSION, "profile": mode + "-security-v1", "mode": mode, "scope": host, "scopeLimited": bool(stop), "scopeStopReason": stop, "requests": collector.count, "bodyByteLimit": baseline.BODY_LIMIT, "requestLimit": MAX_REQUESTS, "timeLimitSeconds": 40, "synthetic": False, "unifiedResults": results, "posture": posture, "registry": REGISTRY, "implemented": IMPLEMENTED, "deferred": DEFERRED_IDS, "limitations": limitations}}
 
 
+_emit_lock = threading.Lock()
+
+
 def main():
     def emit(value):
-        print(json.dumps(value, ensure_ascii=True), flush=True)
+        with _emit_lock:
+            sys.stdout.write(json.dumps(value, ensure_ascii=True) + "\n")
+            sys.stdout.flush()
     if hasattr(signal, "SIGALRM"):
         def deadline(*_):
             raise TimeoutError("Assessment deadline")

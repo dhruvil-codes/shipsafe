@@ -136,8 +136,8 @@ def observe_dns(hostname, deadline, grant_check=lambda: None, emit=None):
             status = {"PASS": "passed", "WARNING": "observation", "NOT_TESTED": "skipped"}.get(result[0], "skipped")
             emit({"type": "stage", "stage": "check_done", "checkId": check, "status": status, "message": "[" + status.upper() + "] " + TITLES[check] + " — " + result[1], "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
         return result
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        futures = {key: pool.submit(run_one, key, host, kind) for key, host, kind in jobs}
-        result = {key: future.result() for key, future in futures.items()}
+    result = {}
+    for key, host, kind in jobs:
+        result[key] = run_one(key, host, kind)
     grant_check()
     return result

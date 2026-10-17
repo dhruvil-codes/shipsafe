@@ -384,3 +384,11 @@
 - Validation: all 152 Vitest tests passed, 7 monorepo packages typecheck clean, committed in `e7f204a` and pushed to `origin/main`.
 - Removed white blurry overlay: disabled `.hero-ascii::after` radial gradient wash (`rgb(252 252 252 / 96%)`) in `polish.css` and removed radial mask-image from `.bg-grid-page` in `globals.css` so engineering grid lines remain crisp and visible across the entire hero and scan interface.
 
+## 42. Universal website scan reliability and terminal staging progression [2026-10-17]
+- Root-caused non-owner scan failure on sites like `magicui.design`: `ThreadPoolExecutor` in `security_dns.py` queried CAA, SPF, DMARC, and MX records concurrently without stream locking. Fast cloud DNS answers caused simultaneous `emit` calls to interleave JSON lines into `events.jsonl` without a newline, crashing `JSON.parse` with `SyntaxError: Unexpected non-whitespace character after JSON`.
+- Added `threading.Lock()` to `security_engine.py` for strictly atomic `sys.stdout.write(...)` line emission.
+- Serialized DNS queries in `security_dns.py` to guarantee deterministic, sequential event delivery.
+- Added resilient multi-object fallback parsing in `baseline-runtime.ts` so stream chunk anomalies cannot crash active scans.
+- Updated terminal staging in `InlineScan.tsx`: staging steps advance chronologically one-by-one without looping, suppressing redundant initial backend events during the staging sequence.
+- Verified live end-to-end scan of external website `https://magicui.design/`: completed with score 52/100, 100% coverage, 11 findings, and 0 errors. All 152 Vitest tests and 55 Python tests pass.
+

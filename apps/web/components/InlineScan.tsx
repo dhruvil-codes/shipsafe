@@ -298,10 +298,17 @@ export default function InlineScan() {
   const displayedEvents = [...presentScanEvents(report?.events ?? []).filter(event => !liveEventIds.has(event.id)), ...liveEvents];
   const checksEvaluated = displayedEvents.filter(event => event.stage === "check_done").length;
   useEffect(() => {
-    if (!active || checksEvaluated > 0) { setStagingIndex(0); return; }
-    const timer = setInterval(() => setStagingIndex(i => (i + 1) % STAGING_STEPS.length), 900);
+    if (!active) { setStagingIndex(0); return; }
+    if (checksEvaluated > 0) return;
+    const timer = setInterval(() => {
+      setStagingIndex(prev => (prev < STAGING_STEPS.length - 1 ? prev + 1 : prev));
+    }, 1100);
     return () => clearInterval(timer);
   }, [active, checksEvaluated]);
+  const isStaging = active && checksEvaluated === 0;
+  const visibleEvents = isStaging
+    ? displayedEvents.filter(e => !["QUEUED", "PROVISIONING", "RUNNING"].includes(e.stage))
+    : displayedEvents;
   const score = report ? assessmentScore(report) : null;
   const modernProfile = report?.scan.mode === "standard" || report?.scan.mode === "deep";
   const baselineScore = !modernProfile && reportManifest?.profile === "bounded-http-hardening" ? scoreUrlBaseline(checks) : null;
@@ -334,8 +341,8 @@ export default function InlineScan() {
           <div className="output-heading"><h3><TerminalSquare size={18} aria-hidden="true" /> Scan terminal</h3><span className="small" role="status">{connection}</span></div>
           <div ref={output} className="scan-output-scroll" onScroll={event => { const el = event.currentTarget; setFollowOutput(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }} role="log" aria-label="Scan output" aria-live="polite" aria-relevant="additions text" tabIndex={0}>
             <Terminal className="scan-magic-terminal" sequence={false} startOnView={false} windowControls={false}>
-              {active && checksEvaluated === 0 && STAGING_STEPS.slice(0, stagingIndex + 1).map((step, index) => <span className="scan-terminal-line" key={`stage-${index}`}>{step}</span>)}
-              {displayedEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
+              {isStaging && STAGING_STEPS.slice(0, stagingIndex + 1).map((step, index) => <span className="scan-terminal-line" key={`stage-${index}`}>{step}</span>)}
+              {visibleEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
               {lines.map((line, index) => <span className="scan-terminal-line" key={index}>{line}</span>)}
               {error && !lines.length && !displayedEvents.length && <span className="scan-terminal-line scan-terminal-error">[ERROR] {error}</span>}
               {!lines.length && !displayedEvents.length && !error && <span className="scan-terminal-line">{scanId ? "Waiting for recorded scan output." : "No scan has started."}</span>}
