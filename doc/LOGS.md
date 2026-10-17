@@ -352,3 +352,12 @@
 - Rechecked the shared InstaBox VM read-only through the SDK: Python 3.13.5 and required modules, `dig`, OpenSSL 3.5.7, `prlimit`, `flock`, Docker 29.8.2 and all four project-pinned tool images were available. No VM update was needed; no external scanner integration was enabled.
 - Ran the fixed network-disabled private lab through the rebuilt production app. It completed with 13 ordered start/completion pairs, 13 saved checks, score 25, 92% coverage and verified cleanup. The first HTTPS check start arrived before the request event. No public target was contacted.
 - Validation: 49 Python scanner tests (including lifecycle pairing and metadata), 152 workspace Vitest tests, all workspace typechecks, production build, and the private synthetic end-to-end run passed. Browser inspection confirmed the hero contains only URL, Scan and the permission hint. No commit, push or deployment.
+
+## 38. Real scan execution fixes and prlimit tuning [2026-10-17]
+- Root-caused local scan submission readiness: Next.js running from apps/web isolates .env.local to apps/web/.env.local. Added automatic fallback .env.local discovery in readiness.ts while maintaining test isolation (apiStore.isPersistent()).
+- Root-caused InstaBox VM execution failure: Linux RLIMIT_NPROC bounds total processes per user UID (dev). The desktop/VNC background environment on the VM has ~27 processes, causing prlimit --nproc=32 to fail with timeout: fork system call failed: Resource temporarily unavailable (exit code 125).
+- Tuned nproc from 32 to 128 in baseline-runtime.ts and worker_manager.py while keeping address space (--as=268435456) and CPU time bounds. Added queue execution error logging for observability.
+- Verified end-to-end execution on live InstaBox VM:
+  - Canonical https://www.bydhruvil.in/: completed with score 62, 10 findings, 55 checks evaluated, and 86 live streaming events recorded.
+  - Redirect handling on https://bydhruvil.in/: correctly recorded the 308 redirect and safely stopped at the exact hostname boundary as required by policy.
+- Validation: 152 Vitest tests passed, 55 Python tests passed, all 7 monorepo packages typechecked clean, committed and pushed to origin/main.
