@@ -404,3 +404,10 @@
 - Kept the header opaque above the ASCII background, moved the mobile navigation breakpoint to 800px, and added Escape, outside-click, focus-exit and viewport-change dismissal. Reduced ASCII glow and depth blur, bounded its height and restored explicit reduced-motion pause behavior.
 - Removed simulated terminal staging and the fixed 55-check progress denominator. Progress now counts recorded check completion events.
 - Validation: web Vitest suite passed 152 tests, workspace typechecks passed and production build passed. Browser checks at 320, 390, 640, 768, 800 and 1440px found no horizontal overflow or finding-action overlap. Verified severity filtering, finding disclosure, navigation Escape dismissal and reduced-motion state against a saved synthetic report. Screenshots and measurements are in the isolated worktree under .artifacts/ui-polish/. No scan was started.
+
+## 43. Vercel serverless source bundling and scan terminal staging restoration [2026-10-17]
+- Root cause of provisioning failure on Vercel: dynamic file reads in `sourcePath()` attempted to read `packages/sandbox/src/*.py` from disk, which were omitted from the serverless bundle during Vercel deployment. When the queue popped, the runner failed to locate the python files, executing cleanup and marking the scan failed with `[FAILED] Scan did not produce a complete report`.
+- Created `runner-sources.ts` providing in-memory embedded source strings for `baseline.py`, `security_dns.py`, `security_engine.py`, `security_registry.py`, and `security_registry.json`, with automated fallback from filesystem to embedded strings so execution is guaranteed across any serverless or local environment.
+- Configured `outputFileTracingIncludes` in `next.config.js` and set `export const maxDuration = 60` on scan routes.
+- Restored animated terminal staging sequencer and live progress bar in `InlineScan.tsx` so users see chronological setup progress before check results stream in.
+- All 152 Vitest tests and 55 Python tests pass cleanly.

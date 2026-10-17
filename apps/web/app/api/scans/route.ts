@@ -8,6 +8,7 @@ import { kickQueue } from "../_lib/baseline-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
   if (executionReadiness().executionConfigured) kickQueue();

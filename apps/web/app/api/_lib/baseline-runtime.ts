@@ -37,17 +37,11 @@ const failureCopy: Record<BaselineFailureReason, string> = {
   SCOPE_POLICY: "The request was rejected by an exact-host scope safeguard.",
 };
 const LAB_IMAGE = "ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6";
+import { getSourceContent } from "./runner-sources";
+
 const shell = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 const python = (source: string) => `python3 -c ${shell(source)}`;
 const state = globalThis as typeof globalThis & { shipSafeQueue?: Promise<void> };
-
-function sourcePath(name = "baseline.py"): string {
-  for (const root of [process.cwd(), path.resolve(process.cwd(), "../..")]) {
-    const file = path.join(root, "packages/sandbox/src", name);
-    if (fs.existsSync(file)) return file;
-  }
-  throw new Error("The baseline engine source is unavailable.");
-}
 
 async function exec(vm: SandboxLike, command: string, timeoutMs = 20000): Promise<string> {
   const result = await vm.commands.run(command, { timeoutMs }) as { stdout?: string; exitCode?: number };
@@ -77,16 +71,16 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
     requireCurrentAuthorization();
     await exec(vm, python(`import os,time,re,shutil\nfor name in os.listdir('/tmp'):\n if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue\n p='/tmp/'+name\n if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue\n try:\n  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()\n  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue\n except (FileNotFoundError,ProcessLookupError): pass\n shutil.rmtree(p)\nos.mkdir(${JSON.stringify(directory)},0o700)`));
     prepared = true;
-    await vm.files.write(`${directory}/baseline.py`, fs.readFileSync(sourcePath(), "utf8").replaceAll("\r\n", "\n"));
+    await vm.files.write(`${directory}/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
     if (securityMode) {
       for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
-        await vm.files.write(`${directory}/${file}`, fs.readFileSync(sourcePath(file), "utf8").replaceAll("\r\n", "\n"));
+        await vm.files.write(`${directory}/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
       }
     }
     await vm.files.write(`${directory}/input.json`, JSON.stringify({ mode: scan.mode ?? "website", url: scan.mode === "lab" ? "https://fixture.invalid/" : scan.url, ...(authorization ? { authorization: { hostname: authorization.hostname, expiresAt: authorization.expiresAt, classes: authorization.classes } } : {}) }));
     requireCurrentAuthorization();
     const args = scan.mode === "lab"
-      ? ["timeout", "80s", "docker", "run", "--rm", "--name", container, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "128", "--memory", "512m", "--cpus", "1", "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--env", "HOME=/tmp", "--entrypoint", "python3", "-i", LAB_IMAGE, "-u", "-c", `import base64;exec(base64.b64decode("${Buffer.from(fs.readFileSync(sourcePath(), "utf8")).toString("base64")}"))`]
+      ? ["timeout", "80s", "docker", "run", "--rm", "--name", container, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "128", "--memory", "512m", "--cpus", "1", "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--env", "HOME=/tmp", "--entrypoint", "python3", "-i", LAB_IMAGE, "-u", "-c", `import base64;exec(base64.b64decode("${Buffer.from(getSourceContent("baseline.py")).toString("base64")}"))`]
       : securityMode
         ? ["prlimit", "--as=268435456", "--cpu=45", "--nproc=128", "--fsize=1048576", "--nofile=64", "--", "timeout", "50s", "python3", "-u", `${directory}/security_engine.py`]
         : ["timeout", "70s", "python3", "-u", `${directory}/baseline.py`];
@@ -138,7 +132,7 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
           if (!envelope.success) continue;
           if (envelope.data.type === "report") {
             report = Report.parse(value);
-            if (securityMode) validateSecurityReport(report, scan, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), authorization?.classes);
+            if (securityMode) validateSecurityReport(report, scan, JSON.parse(getSourceContent("security_registry.json")), authorization?.classes);
             finished = true;
           } else if (envelope.data.type === "error") {
             const failure = z.object({ type: z.literal("error"), code: z.enum(["SCOPE_REJECTED", "BASELINE_FAILED", "SECURITY_FAILED"]), reason: BaselineFailureReason.optional() }).safeParse(value);
@@ -232,7 +226,7 @@ export function kickQueue(): void {
         const checks = report.checks;
         for (const finding of report.findings) apiStore.addFinding({ ...finding, scanId: scan.id });
         const scopeLimited = report.manifest.scopeLimited === true;
-        const posture = scan.mode === "standard" || scan.mode === "deep" ? securityPosture(report.manifest.unifiedResults, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), scan.mode) : null;
+        const posture = scan.mode === "standard" || scan.mode === "deep" ? securityPosture(report.manifest.unifiedResults, JSON.parse(getSourceContent("security_registry.json")), scan.mode) : null;
         const calculatedBaseline = (!scopeLimited && report.manifest.profile === "bounded-http-hardening") ? scoreUrlBaseline(checks) : null;
         apiStore.updateScan(scan.id, {
           status: "COMPLETED",

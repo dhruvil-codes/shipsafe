@@ -80,8 +80,10 @@
 .finding-actions .text-button { gap: 6px; font-size: 13px; white-space: nowrap; }
 .finding-actions .copy-control [role="status"] { font-size: 12px; }
 .finding-toggle:focus-visible, .tree-scan:focus-visible, .tree-host:focus-visible { outline: 2px solid var(--info); outline-offset: 4px; }
-.scan-live-progress { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 14px; color: var(--muted); }
+.scan-live-progress { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
 .scan-progress-spinner { width: 14px; height: 14px; flex-shrink: 0; border: 2px solid var(--info-border); border-top-color: var(--info); border-radius: 50%; animation: scan-spin 800ms linear infinite; }
+.scan-progress-bar { flex: 1 1 140px; max-width: 200px; height: 6px; background: var(--wash); border: 1px solid var(--border); border-radius: 9999px; overflow: hidden; margin-left: auto; }
+.scan-progress-fill { height: 100%; background: var(--info); border-radius: 9999px; transition: width 300ms ease; }
 @keyframes scan-spin { to { transform: rotate(360deg); } }
 .finding-chevron { flex-shrink: 0; font-size: 20px; color: var(--info); }
 .finding-permalink { flex-shrink: 0; color: var(--info); }

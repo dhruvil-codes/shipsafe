@@ -33,9 +33,19 @@ function UnifiedResults({ results }: { results: UnifiedResult[] }) {
   </section>;
 }
 
+const STAGING_STEPS = [
+  "[QUEUED] Baseline queued from the user's authorization attestation. Checks are bounded to this exact hostname; no subdomain discovery or exploit templates.",
+  "[PROVISIONING] Connecting to the shared InstaBox VM. This job has exclusive use of the scan worker.",
+  "[STAGING] Initializing ephemeral execution sandbox on shared worker...",
+  "[STAGING] Verifying public IP routing and exact-host reachability...",
+  "[STAGING] Dispatching security scanner payload and compiling check matrix...",
+  "[RUNNING] Running 55 registered security checks on exact hostname with pinned addresses...",
+];
+
 /** URL entry, terminal output and recorded results stay on this page. */
 export default function InlineScan() {
   const [value, setValue] = useState("");
+  const [stagingIndex, setStagingIndex] = useState(0);
   const [deepProject, setDeepProject] = useState<Project | null>(null);
   const [target, setTarget] = useState<Project | null>(null);
   const [targets, setTargets] = useState<Project[]>([]);
@@ -270,6 +280,18 @@ export default function InlineScan() {
   const liveEventIds = new Set(liveEvents.map(event => event.id).filter(Boolean));
   const displayedEvents = [...presentScanEvents(report?.events ?? []).filter(event => !liveEventIds.has(event.id)), ...liveEvents];
   const checksEvaluated = displayedEvents.filter(event => event.stage === "check_done").length;
+  const isStaging = active && checksEvaluated === 0;
+  useEffect(() => {
+    if (!active) { setStagingIndex(0); return; }
+    if (checksEvaluated > 0) return;
+    const timer = setInterval(() => {
+      setStagingIndex(prev => (prev < STAGING_STEPS.length - 1 ? prev + 1 : prev));
+    }, 1100);
+    return () => clearInterval(timer);
+  }, [active, checksEvaluated]);
+  const visibleEvents = isStaging
+    ? displayedEvents.filter(e => !["QUEUED", "PROVISIONING", "RUNNING"].includes(e.stage))
+    : displayedEvents;
   const score = report ? assessmentScore(report) : null;
   const modernProfile = report?.scan.mode === "standard" || report?.scan.mode === "deep";
   const baselineScore = !modernProfile && reportManifest?.profile === "bounded-http-hardening" ? scoreUrlBaseline(checks) : null;
@@ -302,10 +324,11 @@ export default function InlineScan() {
           <div className="output-heading"><h3><TerminalSquare size={18} aria-hidden="true" /> Scan terminal</h3><span className="small" role="status">{connection}</span></div>
           <div ref={output} className="scan-output-scroll" onScroll={event => { const el = event.currentTarget; setFollowOutput(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }} role="log" aria-label="Scan output" aria-live="polite" aria-relevant="additions text" tabIndex={0}>
             <Terminal className="scan-magic-terminal" sequence={false} startOnView={false} windowControls={false}>
-              {displayedEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
+              {isStaging && STAGING_STEPS.slice(0, stagingIndex + 1).map((step, index) => <span className="scan-terminal-line" key={`stage-${index}`}>{step}</span>)}
+              {visibleEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
               {lines.map((line, index) => <span className="scan-terminal-line" key={index}>{line}</span>)}
-              {error && !lines.length && !displayedEvents.length && <span className="scan-terminal-line scan-terminal-error">[ERROR] {error}</span>}
-              {!lines.length && !displayedEvents.length && !error && <span className="scan-terminal-line">{scanId ? "Waiting for recorded scan output." : "No scan has started."}</span>}
+              {error && !lines.length && !displayedEvents.length && !isStaging && <span className="scan-terminal-line scan-terminal-error">[ERROR] {error}</span>}
+              {!lines.length && !displayedEvents.length && !isStaging && !error && <span className="scan-terminal-line">{scanId ? "Waiting for recorded scan output." : "No scan has started."}</span>}
             </Terminal>
           </div>
           <div className="output-footer"><span className="small muted">Scanner output and security results come from recorded events and evidence.</span>{!followOutput && <button className="text-button" onClick={() => setFollowOutput(true)}><ArrowDown size={14} aria-hidden="true" /> Latest output</button>}</div>
@@ -316,7 +339,8 @@ export default function InlineScan() {
       {error && <p className="notice error-notice" role="alert">{error}</p>}
       {active && <div className="scan-live-progress" role="status" aria-live="polite">
         <span className="scan-progress-spinner" aria-hidden="true" />
-        <span>{checksEvaluated ? `${checksEvaluated} checks completed. Scan in progress…` : "Waiting for recorded check results…"}</span>
+        <span>{checksEvaluated ? `Analyzing security controls (${checksEvaluated}/55 checks evaluated)…` : "Connecting to InstaBox sandbox & initializing scanner…"}</span>
+        <div className="scan-progress-bar"><div className="scan-progress-fill" style={{ width: `${Math.min(100, Math.max(8, (checksEvaluated / 55) * 100))}%` }} /></div>
       </div>}
       {report && isTerminal(report.scan.status) && <section className="inline-results stack" aria-label="Recorded results">
         <div className="report-heading">

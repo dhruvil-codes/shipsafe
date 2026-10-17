@@ -5,6 +5,7 @@ import { kickQueue } from "../../../_lib/baseline-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /** Replay persisted events, then follow the worker without tying execution to the browser. */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
