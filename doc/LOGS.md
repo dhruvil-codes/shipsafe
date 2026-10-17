@@ -361,3 +361,9 @@
   - Canonical https://www.bydhruvil.in/: completed with score 62, 10 findings, 55 checks evaluated, and 86 live streaming events recorded.
   - Redirect handling on https://bydhruvil.in/: correctly recorded the 308 redirect and safely stopped at the exact hostname boundary as required by policy.
 - Validation: 152 Vitest tests passed, 55 Python tests passed, all 7 monorepo packages typechecked clean, committed and pushed to origin/main.
+
+## 39. Canonical apex ↔ www redirect follow and URL normalizer [2026-10-17]
+- Integrated baseline.site_aliases() in security_engine.py Collector.approve, request, and follow.
+- Standardized URL normalization in apps/web/lib/url.ts to automatically format any user input (e.g. bydhruvil.in, http://, whitespace) into valid canonical origins.
+- Verified live end-to-end scan with apex target https://bydhruvil.in/: followed canonical redirect to https://www.bydhruvil.in/, completed with ScopeLimited=false, Score=67/100, 100% coverage, and 87 live events.
+- All 152 Vitest tests, 55 Python tests, and package typechecks pass clean.
