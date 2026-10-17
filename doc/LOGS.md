@@ -18,6 +18,10 @@
   - Replaced the minimal inline completed scan results with the full sample report layout (`/report/sample`) in [`apps/web/components/InlineScan.tsx`](file:///d:/shipsafe/apps/web/components/InlineScan.tsx), featuring split metrics (Recorded score, Executed check coverage), limits callout, JSON/print exports, severity-filtered finding cards with fix prompts, and 13-control check outcomes table.
   - Fixed Private Lab scan: Prevented `shipsafe-fixture.invalid` from populating user input URL and cleanly labeled the session and scan tree as `ShipSafe Private Lab`.
   - Refactored `BOARD` in [`apps/web/app/page.tsx`](file:///d:/shipsafe/apps/web/app/page.tsx) to replace repetitive 'Not tested' labels with actionable security profiles across perimeter, cookies, API exposure, and full-stack integration boundaries.
+- **Hero and Navbar Unification**:
+  - Repositioned `<HeroASCII />` at the root of `.ora` preceding `<OraNav />` with `height: 760px` (`height: 640px` on mobile) and `z-index: -1`.
+  - Configured `.ora { position: relative; isolation: isolate; }` and `.ora .ora-nav { background: transparent; border-bottom: 0; }`.
+  - Restored seamless coverage across the navbar and hero with zero horizontal cut, white seam, or visual boundary between navigation and hero.
 
 ---
 

@@ -109,13 +109,13 @@
 .data-table tbody tr:hover { background: var(--info-wash); }
 
 /* Landing: keep Ora's composition and give the content a consistent measure. */
+.ora { position: relative; isolation: isolate; }
 .ora .ora-hero { position: relative; isolation: isolate; }
-.ora-hero-stage { position: relative; isolation: isolate; }
-.hero-ascii { position: absolute; z-index: -1; inset: 0 0 auto; height: 680px; pointer-events: none; opacity: .6; }
+.hero-ascii { position: absolute; z-index: -1; inset: 0 0 auto; height: 760px; pointer-events: none; opacity: .6; }
 .hero-ascii::after { display: none; }
-@media(max-width:600px) { .hero-ascii { height: 580px; opacity: .42; } .hero-ascii::after { display: none; } }
+@media(max-width:600px) { .hero-ascii { height: 640px; opacity: .42; } .hero-ascii::after { display: none; } }
 @media print { .hero-ascii { display: none; } }
-.ora .ora-nav { flex-wrap: wrap; row-gap: 0; }
+.ora .ora-nav { flex-wrap: wrap; row-gap: 0; background: transparent; border-bottom: 0; }
 .ora .ora-links a { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
 .ora .ora-links .nav-workspace { color: var(--info); }
 .ora .ora-hero { padding-top: 80px; max-width: 1120px; }

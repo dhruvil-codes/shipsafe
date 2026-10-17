@@ -71,10 +71,9 @@ export default function HomePage() {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
+      <HeroASCII />
       <OraNav />
       <main id="main">
-        <div className="ora-hero-stage">
-          <HeroASCII />
         <section className="ora-hero">
           <div className="hero-kicker"><ShieldCheck size={16} aria-hidden="true" /> Security, with evidence</div>
           <h1 className="ora-h1">
@@ -108,8 +107,6 @@ export default function HomePage() {
             Exact-host scope · Evidence with every finding
           </p>
         </section>
-
-        </div>
 
         <section id="coverage" className="ora-board-section">
           <div className="board-head">
