@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS scans (
   authorization_id TEXT,
   user_ip TEXT,
   user_id TEXT,
+  webhook_url TEXT,
+  previous_score INTEGER,
+  score_delta INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   completed_at INTEGER
@@ -90,3 +93,11 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits (window_expires_at);
+
+CREATE TABLE IF NOT EXISTS queue_metrics (
+  id TEXT PRIMARY KEY,
+  rolling_avg_duration REAL NOT NULL DEFAULT 15.0,
+  updated_at INTEGER NOT NULL
+);
+EOF
+path: deploy/migrations/0001_init.sql

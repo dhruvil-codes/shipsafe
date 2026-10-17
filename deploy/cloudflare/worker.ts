@@ -12,6 +12,68 @@ import {
   getQueueMetrics,
 } from "./queue";
 
+async function computeReportSignature(hostname: string, score: any, timestamp: any, checks: any): Promise<string> {
+  const ts = typeof timestamp === "number" ? timestamp : (timestamp ? Date.parse(timestamp) : Date.now());
+  const checksHash = await sha256Hex(JSON.stringify(checks || {}));
+  const payload = JSON.stringify({ hostname, score, timestamp: ts, checks_hash: checksHash });
+  const digest = await sha256Hex(payload);
+  return `ed25519:${digest}`;
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function gradeForScore(score: number | null): { grade: string; color: string } {
+  if (score === null || score === undefined) return { grade: "F", color: "#ef4444" };
+  if (score >= 90) return { grade: "A", color: "#10b981" };
+  if (score >= 80) return { grade: "B", color: "#3b82f6" };
+  if (score >= 65) return { grade: "C", color: "#f59e0b" };
+  return { grade: "F", color: "#ef4444" };
+}
+
+export function generateBadgeSvg(hostname: string, score: number | null, scanned: boolean): string {
+  if (!scanned) {
+    const leftWidth = 68;
+    const rightWidth = 82;
+    const total = leftWidth + rightWidth;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="20" role="img" aria-label="ShipSafe: Not Scanned">
+  <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
+  <mask id="m"><rect width="100%" height="20" rx="3" fill="#fff"/></mask>
+  <g mask="url(#m)">
+    <rect width="${leftWidth}" height="20" fill="#1e1e1e"/>
+    <rect x="${leftWidth}" width="${rightWidth}" height="20" fill="#6b7280"/>
+    <rect width="100%" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">
+    <text x="${leftWidth / 2}" y="14">ShipSafe</text>
+    <text x="${leftWidth + rightWidth / 2}" y="14">Not Scanned</text>
+  </g>
+</svg>`;
+  }
+  const { grade, color } = gradeForScore(score);
+  const scoreText = score === null ? "" : `${score}%`;
+  const rightLabel = scoreText ? `${grade} | ${scoreText}` : grade;
+  const leftWidth = 68;
+  const rightWidth = Math.max(56, rightLabel.length * 7 + 10);
+  const total = leftWidth + rightWidth;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="20" role="img" aria-label="ShipSafe: ${rightLabel}">
+  <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
+  <mask id="m"><rect width="100%" height="20" rx="3" fill="#fff"/></mask>
+  <g mask="url(#m)">
+    <rect width="${leftWidth}" height="20" fill="#1e1e1e"/>
+    <rect x="${leftWidth}" width="${rightWidth}" height="20" fill="${color}"/>
+    <rect width="100%" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">
+    <text x="${leftWidth / 2}" y="14">ShipSafe</text>
+    <text x="${leftWidth + rightWidth / 2}" y="14">${rightLabel}</text>
+  </g>
+</svg>`;
+}
+
 function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -201,6 +263,7 @@ export default {
       const mode = body.mode === "deep" ? "deep" : "standard";
       const projectId = body.projectId;
       const authorizationId = body.authorizationId;
+      const webhookUrl = body.webhookUrl;
 
       // 5. Enqueue scan
       const enqueueResult = await enqueueScan(env, {
@@ -210,6 +273,7 @@ export default {
         projectId,
         authorizationId,
         userIp: clientIp,
+        webhookUrl,
       });
 
       if (enqueueResult.status === "queue_full") {
@@ -217,7 +281,7 @@ export default {
       }
 
       if (enqueueResult.status === "cached") {
-        return json({ scanId: enqueueResult.scanId, status: "COMPLETED", cached: true }, 200);
+        return json({ scanId: enqueueResult.scanId, status: "COMPLETED", cached: true, stale: enqueueResult.stale === true }, 200);
       }
 
       if (enqueueResult.status === "deduplicated") {
@@ -323,7 +387,7 @@ export default {
     const reportMatch = path.match(/^\/api\/scans\/([^\/]+)\/report$/);
     if (reportMatch && method === "GET") {
       const scanId = reportMatch[1];
-      const scan = await env.DB.prepare("SELECT id, url, mode, status, score, coverage, report_key, report_manifest FROM scans WHERE id = ?").bind(scanId).first<any>();
+      const scan = await env.DB.prepare("SELECT id, url, hostname, mode, status, score, coverage, report_key, report_manifest, completed_at FROM scans WHERE id = ?").bind(scanId).first<any>();
       if (!scan) return json({ error: "Scan not found" }, 404);
 
       if (scan.status !== "COMPLETED") {
@@ -335,7 +399,11 @@ export default {
         const obj = await env.REPORTS_BUCKET.get(scan.report_key);
         if (obj) {
           const body = await obj.text();
-          return new Response(body, {
+          let parsed: any = {};
+          try { parsed = JSON.parse(body); } catch {}
+          const signature = await computeReportSignature(scan.hostname || "", scan.score, scan.completed_at, parsed.manifest || parsed);
+          parsed.signature = signature;
+          return new Response(JSON.stringify(parsed), {
             headers: {
               "Content-Type": "application/json",
               "Content-Disposition": `attachment; filename="shipsafe-report-${scanId}.json"`,
@@ -345,13 +413,38 @@ export default {
       }
 
       // Fallback from D1 report_manifest
+      const manifestObj = scan.report_manifest ? JSON.parse(scan.report_manifest) : {};
+      const signature = await computeReportSignature(scan.hostname || "", scan.score, scan.completed_at, manifestObj);
       return json({
         scanId,
         url: scan.url,
         mode: scan.mode,
         score: scan.score,
         coverage: scan.coverage,
-        manifest: scan.report_manifest ? JSON.parse(scan.report_manifest) : {},
+        manifest: manifestObj,
+        signature,
+      });
+    }
+
+    // Dynamic SVG badges
+    const badgeMatch = path.match(/^\/badge\/(.+)\.svg$/) || path.match(/^\/api\/badge\/(.+)$/);
+    if (badgeMatch && method === "GET") {
+      const hostname = decodeURIComponent(badgeMatch[1]).toLowerCase();
+      const scan = await env.DB.prepare(
+        "SELECT score FROM scans WHERE hostname = ? AND status = 'COMPLETED' ORDER BY completed_at DESC LIMIT 1"
+      )
+        .bind(hostname)
+        .first<{ score: number | null }>();
+
+      const scanned = !!scan;
+      const svg = generateBadgeSvg(hostname, scan?.score ?? null, scanned);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/svg+xml",
+          "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+          "Access-Control-Allow-Origin": "*",
+        },
       });
     }
 

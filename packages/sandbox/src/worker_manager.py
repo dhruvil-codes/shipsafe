@@ -542,11 +542,23 @@ class WorkerManager:
             active_hosts = [t.hostname for t in self.active_tasks.values() if t.hostname]
 
         metrics = get_system_metrics()
-        avail_standard = max(0, self.max_standard - active_standard)
 
-        # Deep scan is permitted only if active deep is 0, active standard <= 1, and system RAM/CPU permit
+        # Adaptive slot auto-tuning based on real-time load.
+        load_1m = float(metrics.get("load_1m", 0.0))
+        mem_available_mb = int(metrics.get("mem_available_mb", 0))
+        if load_1m >= 3.0 or mem_available_mb < 2048:
+            effective_max_standard = min(self.max_standard, 2)
+        elif load_1m < 2.0 and mem_available_mb >= 4096:
+            effective_max_standard = max(self.max_standard, 4)
+            effective_max_standard = min(effective_max_standard, 4)
+        else:
+            effective_max_standard = self.max_standard
+
+        avail_standard = max(0, effective_max_standard - active_standard)
+
+        # Deep scan is permitted only if active deep is 0, active standard <= 1, and system RAM permits.
         avail_deep = 0
-        if active_deep < self.max_deep and active_standard <= 1 and metrics["can_run_deep"]:
+        if active_deep < self.max_deep and active_standard <= 1 and mem_available_mb >= 1500 and metrics.get("can_run_deep", False):
             avail_deep = 1
 
         return avail_standard, avail_deep, active_hosts

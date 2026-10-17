@@ -80,6 +80,9 @@ export interface ScanJob {
   authorizationId?: string;
   userIp?: string;
   userId?: string;
+  webhookUrl?: string;
+  previousScore?: number;
+  scoreDelta?: number;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;

@@ -1,8 +1,43 @@
 import type { Env, ScanJob, ScanEvent, ScanFinding, QueueMetrics } from "./types";
 
-const CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes
+const CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes (fresh)
+const SWR_MAX_AGE_MS = 60 * 60 * 1000; // 60 minutes (stale-while-revalidate window)
 const LEASE_DURATION_MS = 45 * 1000; // 45 seconds visibility timeout
 const MAX_QUEUE_DEPTH = 100;
+const DEFAULT_ROLLING_AVG_DURATION = 15.0;
+const EMA_ALPHA = 0.2;
+
+// In-memory rolling EMA of scan durations (5-minute window), keyed by DB instance.
+const rollingAvgByDb = new Map<any, number>();
+
+function getRollingAvgDuration(env: Env): number {
+  const key = env.DB;
+  const val = rollingAvgByDb.get(key);
+  return typeof val === "number" && val > 0 ? val : DEFAULT_ROLLING_AVG_DURATION;
+}
+
+function updateRollingAvgDuration(env: Env, durationSec: number): void {
+  const key = env.DB;
+  const prev = rollingAvgByDb.get(key);
+  const next =
+    prev === undefined
+      ? durationSec
+      : EMA_ALPHA * durationSec + (1 - EMA_ALPHA) * prev;
+  rollingAvgByDb.set(key, Math.max(1, next));
+
+  // Best-effort persistence to D1 (ignored if table absent, e.g. in tests).
+  try {
+    const now = Date.now();
+    env.DB.prepare(
+      "INSERT INTO queue_metrics (id, rolling_avg_duration, updated_at) VALUES ('global', ?, ?) ON CONFLICT(id) DO UPDATE SET rolling_avg_duration = excluded.rolling_avg_duration, updated_at = excluded.updated_at"
+    )
+      .bind(next, now)
+      .run()
+      .catch(() => {});
+  } catch {
+    // ignore
+  }
+}
 
 function generateScanId(): string {
   const bytes = new Uint8Array(16);
@@ -14,8 +49,25 @@ export function computeCacheKey(url: string, mode: string): string {
   return `${mode}:${url.toLowerCase().trim()}`;
 }
 
+function userKey(scan: any): string {
+  return String(scan.user_id || scan.userIp || scan.user_ip || scan.project_id || scan.hostname || "");
+}
+
+async function sendWebhook(url: string | null | undefined, payload: any): Promise<void> {
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Best-effort; never block scan completion.
+  }
+}
+
 /**
- * Enqueue a new scan with deduplication and bounded queue protection.
+ * Enqueue a new scan with deduplication, bounded queue protection, SWR caching.
  */
 export async function enqueueScan(
   env: Env,
@@ -28,24 +80,30 @@ export async function enqueueScan(
     authorizationId?: string;
     userIp?: string;
     userId?: string;
+    webhookUrl?: string;
   }
-): Promise<{ status: "queued" | "cached" | "deduplicated" | "queue_full"; scanId: string; scan?: Partial<ScanJob> }> {
+): Promise<{ status: "queued" | "cached" | "deduplicated" | "queue_full"; scanId: string; scan?: Partial<ScanJob>; cached?: boolean; stale?: boolean }> {
   const now = Date.now();
   const cacheKey = computeCacheKey(params.url, params.mode);
 
   // 1. Check for cached report (public standard scans only)
   if (params.mode === "standard" || params.mode === "website") {
     const cached = await env.DB.prepare(
-      "SELECT report_key, score, coverage, summary_json, expires_at FROM cached_reports WHERE cache_key = ? AND expires_at > ?"
+      "SELECT report_key, score, coverage, summary_json, expires_at, created_at FROM cached_reports WHERE cache_key = ? AND (expires_at > ? OR created_at > ?)"
     )
-      .bind(cacheKey, now)
-      .first<{ report_key: string; score: number; coverage: number; summary_json: string }>();
+      .bind(cacheKey, now, now - SWR_MAX_AGE_MS)
+      .first<{ report_key: string; score: number; coverage: number; summary_json: string; expires_at: number; created_at: number }>();
 
     if (cached) {
+      const createdAt = cached.created_at || cached.expires_at - CACHE_TTL_MS;
+      const age = now - createdAt;
+      const fresh = age <= CACHE_TTL_MS;
+      const stale = !fresh && age <= SWR_MAX_AGE_MS;
+
       const scanId = generateScanId();
       await env.DB.prepare(
-        `INSERT INTO scans (id, project_id, project_name, url, hostname, mode, status, score, coverage, report_key, report_manifest, scope_accepted, user_ip, user_id, created_at, updated_at, completed_at)
-         VALUES (?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+        `INSERT INTO scans (id, project_id, project_name, url, hostname, mode, status, score, coverage, report_key, report_manifest, scope_accepted, user_ip, user_id, webhook_url, created_at, updated_at, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           scanId,
@@ -53,19 +111,46 @@ export async function enqueueScan(
           params.projectName || params.hostname,
           params.url,
           params.hostname,
+          params.mode,
           cached.score,
           cached.coverage,
           cached.report_key,
           cached.summary_json,
           params.userIp || null,
           params.userId || null,
+          params.webhookUrl || null,
           now,
           now,
           now
         )
         .run();
 
-      return { status: "cached", scanId };
+      if (stale) {
+        // Enqueue an asynchronous background refresh job without blocking the user.
+        const refreshId = generateScanId();
+        await env.DB.prepare(
+          `INSERT INTO scans (id, project_id, project_name, url, hostname, mode, status, priority, scope_accepted, authorization_id, user_ip, user_id, webhook_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?, 1, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(
+            refreshId,
+            params.projectId || "p_default",
+            params.projectName || params.hostname,
+            params.url,
+            params.hostname,
+            params.mode,
+            params.mode === "standard" ? 10 : 20,
+            params.authorizationId || null,
+            params.userIp || null,
+            params.userId || null,
+            params.webhookUrl || null,
+            now,
+            now
+          )
+          .run();
+      }
+
+      return { status: "cached", scanId, cached: true, stale };
     }
   }
 
@@ -96,8 +181,8 @@ export async function enqueueScan(
   const priority = params.mode === "standard" ? 10 : 20;
 
   await env.DB.prepare(
-    `INSERT INTO scans (id, project_id, project_name, url, hostname, mode, status, priority, scope_accepted, authorization_id, user_ip, user_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?, 1, ?, ?, ?, ?, ?)`
+    `INSERT INTO scans (id, project_id, project_name, url, hostname, mode, status, priority, scope_accepted, authorization_id, user_ip, user_id, webhook_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?, 1, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       scanId,
@@ -110,6 +195,7 @@ export async function enqueueScan(
       params.authorizationId || null,
       params.userIp || null,
       params.userId || null,
+      params.webhookUrl || null,
       now,
       now
     )
@@ -154,7 +240,6 @@ export async function claimNextJob(
   if (allowedModes.length === 0) return null;
 
   // Find candidate jobs: status QUEUED or RETRY_PENDING with next_retry_at <= now
-  // Exclude hostnames currently being scanned anywhere in the system
   const runningHostsRows = await env.DB.prepare(
     "SELECT DISTINCT hostname FROM scans WHERE status IN ('CLAIMED', 'RUNNING') AND lease_expires_at > ?"
   )
@@ -167,25 +252,40 @@ export async function claimNextJob(
   ]);
 
   const candidatesQuery = `
-    SELECT id, project_id, project_name, url, hostname, mode, status, priority, retry_count, max_retries, authorization_id, created_at
+    SELECT id, project_id, project_name, url, hostname, mode, status, priority, retry_count, max_retries, authorization_id, user_ip, user_id, created_at
     FROM scans
     WHERE (status = 'QUEUED' OR (status = 'RETRY_PENDING' AND next_retry_at <= ?))
       AND mode IN (${allowedModes.join(",")})
     ORDER BY priority DESC, created_at ASC
-    LIMIT 20
+    LIMIT 50
   `;
 
   const candidates = await env.DB.prepare(candidatesQuery).bind(now).all<any>();
 
-  let selected: any = null;
+  // Count pending jobs per user for fair interleaving.
+  const pendingByUser = new Map<string, number>();
   for (const c of candidates.results || []) {
-    if (!busyHosts.has(c.hostname.toLowerCase())) {
-      selected = c;
-      break;
-    }
+    const k = userKey(c);
+    pendingByUser.set(k, (pendingByUser.get(k) || 0) + 1);
   }
 
-  if (!selected) return null;
+  // Eligible candidates: not busy host.
+  const eligible = (candidates.results || []).filter(
+    (c: any) => !busyHosts.has(String(c.hostname).toLowerCase())
+  );
+
+  if (eligible.length === 0) return null;
+
+  // Fair ordering: fewer pending jobs for the same user first, then priority, then age.
+  eligible.sort((a: any, b: any) => {
+    const ua = pendingByUser.get(userKey(a)) || 1;
+    const ub = pendingByUser.get(userKey(b)) || 1;
+    if (ua !== ub) return ua - ub;
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    return a.created_at - b.created_at;
+  });
+
+  const selected = eligible[0];
 
   // Atomically claim the job
   const leaseExpiresAt = now + LEASE_DURATION_MS;
@@ -202,7 +302,6 @@ export async function claimNextJob(
     .run();
 
   if (updateResult.meta.changes === 0) {
-    // Another worker/thread claimed it concurrently
     return null;
   }
 
@@ -228,7 +327,7 @@ export async function claimNextJob(
 }
 
 /**
- * Worker Heartbeat: Renews lease and checks for user cancellation.
+ * Worker Heartbeat
  */
 export async function heartbeatJob(
   env: Env,
@@ -254,7 +353,7 @@ export async function heartbeatJob(
 }
 
 /**
- * Complete a job: Saves report to R2/D1 and records findings, score, and cache.
+ * Complete a job
  */
 export async function completeJob(
   env: Env,
@@ -268,7 +367,14 @@ export async function completeJob(
   const now = Date.now();
   const reportKey = `reports/${jobId}/report.json`;
 
-  // 1. Store report in R2 if bucket bound, or embed in D1
+  // Fetch scan row for duration, hostname, webhook.
+  const scanRow = await env.DB.prepare(
+    "SELECT url, hostname, mode, created_at, webhook_url FROM scans WHERE id = ?"
+  )
+    .bind(jobId)
+    .first<{ url: string; hostname: string; mode: string; created_at: number; webhook_url: string | null }>();
+
+  // 1. Store report in R2 if bucket bound
   if (env.REPORTS_BUCKET) {
     try {
       await env.REPORTS_BUCKET.put(reportKey, JSON.stringify(report), {
@@ -282,7 +388,19 @@ export async function completeJob(
 
   const manifestStr = JSON.stringify(report.manifest || {});
 
-  // 2. Update scan status
+  // 2. Compute previous score for time-series delta.
+  let previousScore: number | null = null;
+  if (scanRow?.hostname) {
+    const prev = await env.DB.prepare(
+      "SELECT score FROM scans WHERE hostname = ? AND status = 'COMPLETED' AND id != ? ORDER BY completed_at DESC LIMIT 1"
+    )
+      .bind(scanRow.hostname, jobId)
+      .first<{ score: number }>();
+    if (prev && typeof prev.score === "number") previousScore = prev.score;
+  }
+  const scoreDelta = previousScore !== null && score !== null ? score - previousScore : null;
+
+  // 3. Update scan status
   await env.DB.prepare(
     `UPDATE scans
      SET status = 'COMPLETED',
@@ -290,14 +408,16 @@ export async function completeJob(
          coverage = ?,
          report_key = ?,
          report_manifest = ?,
+         previous_score = ?,
+         score_delta = ?,
          completed_at = ?,
          updated_at = ?
      WHERE id = ?`
   )
-    .bind(score, coverage, reportKey, manifestStr, now, now, jobId)
+    .bind(score, coverage, reportKey, manifestStr, previousScore, scoreDelta, now, now, jobId)
     .run();
 
-  // 3. Batch insert findings
+  // 4. Batch insert findings
   if (findings && findings.length > 0) {
     const statements = findings.slice(0, 100).map(f => {
       return env.DB.prepare(
@@ -322,13 +442,9 @@ export async function completeJob(
     } catch {}
   }
 
-  // 4. Cache public report
-  const scan = await env.DB.prepare("SELECT url, hostname, mode FROM scans WHERE id = ?")
-    .bind(jobId)
-    .first<{ url: string; hostname: string; mode: string }>();
-
-  if (scan && (scan.mode === "standard" || scan.mode === "website") && score !== null) {
-    const cacheKey = computeCacheKey(scan.url, scan.mode);
+  // 5. Cache public report
+  if (scanRow && (scanRow.mode === "standard" || scanRow.mode === "website") && score !== null) {
+    const cacheKey = computeCacheKey(scanRow.url, scanRow.mode);
     const expiresAt = now + CACHE_TTL_MS;
     await env.DB.prepare(
       `INSERT INTO cached_reports (cache_key, url, hostname, mode, report_key, score, coverage, summary_json, created_at, expires_at)
@@ -338,13 +454,33 @@ export async function completeJob(
          score = excluded.score,
          coverage = excluded.coverage,
          summary_json = excluded.summary_json,
-         expires_at = excluded.expires_at`
+         expires_at = excluded.expires_at,
+         created_at = excluded.created_at`
     )
-      .bind(cacheKey, scan.url, scan.hostname, scan.mode, reportKey, score, coverage, manifestStr, now, expiresAt)
+      .bind(cacheKey, scanRow.url, scanRow.hostname, scanRow.mode, reportKey, score, coverage, manifestStr, now, expiresAt)
       .run();
   }
 
-  // 5. Add final completion event
+  // 6. Update rolling EMA duration.
+  if (scanRow?.created_at) {
+    const durationSec = Math.max(1, (now - scanRow.created_at) / 1000);
+    updateRollingAvgDuration(env, durationSec);
+  }
+
+  // 7. Webhook notification (best-effort).
+  const webhookUrl = scanRow?.webhook_url;
+  if (webhookUrl) {
+    await sendWebhook(webhookUrl, {
+      scanId: jobId,
+      status: "COMPLETED",
+      hostname: scanRow.hostname,
+      score,
+      coverage,
+      findingsCount: (findings || []).length,
+    });
+  }
+
+  // 8. Add final completion event
   await env.DB.prepare(
     "INSERT INTO scan_events (id, scan_id, stage, message, timestamp) VALUES (?, ?, 'COMPLETED', ?, ?)"
   )
@@ -360,7 +496,7 @@ export async function completeJob(
 }
 
 /**
- * Fail a job: Manages retry with exponential backoff or dead-letter failure.
+ * Fail a job
  */
 export async function failJob(
   env: Env,
@@ -370,9 +506,9 @@ export async function failJob(
   retryable: boolean
 ): Promise<void> {
   const now = Date.now();
-  const scan = await env.DB.prepare("SELECT retry_count, max_retries FROM scans WHERE id = ?")
+  const scan = await env.DB.prepare("SELECT retry_count, max_retries, webhook_url, hostname FROM scans WHERE id = ?")
     .bind(jobId)
-    .first<{ retry_count: number; max_retries: number }>();
+    .first<{ retry_count: number; max_retries: number; webhook_url: string | null; hostname: string }>();
 
   if (!scan) return;
 
@@ -427,11 +563,21 @@ export async function failJob(
         now
       )
       .run();
+
+    if (scan.webhook_url) {
+      await sendWebhook(scan.webhook_url, {
+        scanId: jobId,
+        status: "FAILED",
+        hostname: scan.hostname,
+        errorCode,
+        errorMessage,
+      });
+    }
   }
 }
 
 /**
- * Reap stale jobs whose worker heartbeat expired.
+ * Reap stale jobs
  */
 export async function reapStaleJobs(env: Env): Promise<number> {
   const now = Date.now();
@@ -462,7 +608,7 @@ export async function reapStaleJobs(env: Env): Promise<number> {
 }
 
 /**
- * Cancel a scan.
+ * Cancel a scan
  */
 export async function cancelScan(env: Env, jobId: string): Promise<boolean> {
   const now = Date.now();
@@ -484,7 +630,7 @@ export async function cancelScan(env: Env, jobId: string): Promise<boolean> {
 }
 
 /**
- * Calculate queue position and estimated waiting time for a scan.
+ * Calculate queue position and estimated waiting time
  */
 export async function getQueuePosition(
   env: Env,
@@ -509,14 +655,15 @@ export async function getQueuePosition(
     .first<{ count: number }>();
 
   const position = (aheadRow?.count || 0) + 1;
-  // With 2 standard slots, average scan takes ~15-20s -> ~10s per slot cycle
-  const estimatedWaitSec = Math.max(5, Math.ceil((position / 2) * 15));
+  const rollingAvgDuration = getRollingAvgDuration(env);
+  const activeSlots = 2;
+  const estimatedWaitSec = Math.max(5, Math.ceil((position / activeSlots) * rollingAvgDuration));
 
   return { queuePosition: position, estimatedWaitSec };
 }
 
 /**
- * Operational Queue Metrics.
+ * Operational Queue Metrics
  */
 export async function getQueueMetrics(env: Env): Promise<QueueMetrics> {
   const queuedRow = await env.DB.prepare("SELECT COUNT(*) as c FROM scans WHERE status IN ('QUEUED', 'RETRY_PENDING')").first<{ c: number }>();
@@ -525,15 +672,14 @@ export async function getQueueMetrics(env: Env): Promise<QueueMetrics> {
   const failedRow = await env.DB.prepare("SELECT COUNT(*) as c FROM scans WHERE status IN ('FAILED', 'EXPIRED')").first<{ c: number }>();
 
   const runningCount = runningRow?.c || 0;
-  // Max capacity: 2 standard + 1 deep = 3 concurrent slots on 1 VM
-  const workerUtilization = Math.min(100, Math.round((runningCount / 3) * 100));
+  const workerUtilization = Math.min(100, Math.round((runningCount / 4) * 100));
 
   return {
     queuedCount: queuedRow?.c || 0,
     runningCount,
     completedCount: completedRow?.c || 0,
     failedCount: failedRow?.c || 0,
-    avgWaitTimeSec: 12.5,
+    avgWaitTimeSec: getRollingAvgDuration(env),
     cacheHitPercentage: 18.4,
     workerUtilizationPercent: workerUtilization,
   };

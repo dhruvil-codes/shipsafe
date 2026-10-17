@@ -66,12 +66,21 @@ class MockD1Database implements D1Database {
         if (q.includes("SELECT retry_count, max_retries FROM scans WHERE id = ?")) {
           const [id] = boundValues;
           const s = stmtDb.scans.get(id);
-          return s ? ({ retry_count: s.retry_count || 0, max_retries: s.max_retries || 2 } as T) : null;
+          return s ? ({ retry_count: s.retry_count || 0, max_retries: s.max_retries || 2, webhook_url: s.webhook_url || null, hostname: s.hostname } as T) : null;
         }
-        if (q.includes("SELECT url, hostname, mode FROM scans WHERE id = ?")) {
+        if (q.includes("SELECT url, hostname, mode") && q.includes("FROM scans WHERE id = ?")) {
           const [id] = boundValues;
           const s = stmtDb.scans.get(id);
-          return s ? ({ url: s.url, hostname: s.hostname, mode: s.mode } as T) : null;
+          return s ? ({ url: s.url, hostname: s.hostname, mode: s.mode, created_at: s.created_at, webhook_url: s.webhook_url || null } as T) : null;
+        }
+        if (q.includes("SELECT score FROM scans WHERE hostname")) {
+          const [hostname, id] = boundValues;
+          // If called with only hostname (badge), id may be undefined.
+          const matches = Array.from(stmtDb.scans.values())
+            .filter((s: any) => s.hostname === hostname && s.status === "COMPLETED" && (id ? s.id !== id : true))
+            .sort((a: any, b: any) => (b.completed_at || 0) - (a.completed_at || 0));
+          const s = matches[0];
+          return s ? ({ score: s.score } as T) : null;
         }
         if (q.includes("FROM scans WHERE id = ?") && q.includes("priority")) {
           const [id] = boundValues;
@@ -112,24 +121,50 @@ class MockD1Database implements D1Database {
       },
       async run<T = unknown>(): Promise<{ success: boolean; meta: { changes: number } }> {
         if (q.includes("INSERT INTO scans")) {
-          const [id, projId, projName, url, hostname, mode, priority, authId, userIp, userId, createdAt, updatedAt] = boundValues;
-          stmtDb.scans.set(id, {
-            id,
-            project_id: projId,
-            project_name: projName,
-            url,
-            hostname,
-            mode,
-            status: "QUEUED",
-            priority,
-            authorization_id: authId,
-            user_ip: userIp,
-            user_id: userId,
-            created_at: createdAt,
-            updated_at: updatedAt,
-            retry_count: 0,
-            max_retries: 2,
-          });
+          if (boundValues.length >= 16) {
+            const [id, projId, projName, url, hostname, mode, score, coverage, repKey, repMan, userIp, userId, webhookUrl, createdAt, updatedAt, completedAt] = boundValues;
+            stmtDb.scans.set(id, {
+              id,
+              project_id: projId,
+              project_name: projName,
+              url,
+              hostname,
+              mode,
+              status: "COMPLETED",
+              score,
+              coverage,
+              report_key: repKey,
+              report_manifest: repMan,
+              user_ip: userIp,
+              user_id: userId,
+              webhook_url: webhookUrl,
+              created_at: createdAt,
+              updated_at: updatedAt,
+              completed_at: completedAt,
+              retry_count: 0,
+              max_retries: 2,
+            });
+          } else {
+            const [id, projId, projName, url, hostname, mode, priority, authId, userIp, userId, webhookUrl, createdAt, updatedAt] = boundValues;
+            stmtDb.scans.set(id, {
+              id,
+              project_id: projId,
+              project_name: projName,
+              url,
+              hostname,
+              mode,
+              status: "QUEUED",
+              priority,
+              authorization_id: authId,
+              user_ip: userIp,
+              user_id: userId,
+              webhook_url: webhookUrl,
+              created_at: createdAt,
+              updated_at: updatedAt,
+              retry_count: 0,
+              max_retries: 2,
+            });
+          }
           return { success: true, meta: { changes: 1 } };
         }
         if (q.includes("UPDATE scans") && q.includes("SET status = 'CLAIMED'")) {
@@ -156,7 +191,7 @@ class MockD1Database implements D1Database {
           return { success: true, meta: { changes: 1 } };
         }
         if (q.includes("UPDATE scans") && q.includes("SET status = 'COMPLETED'")) {
-          const [score, coverage, repKey, repMan, compAt, updAt, id] = boundValues;
+          const [score, coverage, repKey, repMan, prevScore, delta, compAt, updAt, id] = boundValues;
           const s = stmtDb.scans.get(id);
           if (s) {
             s.status = "COMPLETED";
@@ -164,6 +199,8 @@ class MockD1Database implements D1Database {
             s.coverage = coverage;
             s.report_key = repKey;
             s.report_manifest = repMan;
+            s.previous_score = prevScore;
+            s.score_delta = delta;
             s.completed_at = compAt;
             s.updated_at = updAt;
           }
@@ -387,6 +424,17 @@ describe("ShipSafe Cloudflare Architecture", () => {
       // Submitting the same site returns cached report immediately
       const cachedSubmission = await enqueueScan(env, { url: "https://cached-site.com", hostname: "cached-site.com", mode: "standard" });
       expect(cachedSubmission.status).toBe("cached");
+    });
+
+    it("renders svg badge for unscanned host", async () => {
+      const { default: worker } = await import("./worker");
+      const req = new Request("http://localhost/badge/never-scanned.example.svg");
+      const res = await (worker as any).fetch(req, env, { waitUntil() {}, passThroughOnException() {} });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/svg+xml");
+      const text = await res.text();
+      expect(text).toContain("<svg");
+      expect(text).toContain("Not Scanned");
     });
 
     it("calculates accurate queue position and metrics", async () => {
