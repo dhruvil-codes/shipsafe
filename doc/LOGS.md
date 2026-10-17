@@ -367,3 +367,11 @@
 - Standardized URL normalization in apps/web/lib/url.ts to automatically format any user input (e.g. bydhruvil.in, http://, whitespace) into valid canonical origins.
 - Verified live end-to-end scan with apex target https://bydhruvil.in/: followed canonical redirect to https://www.bydhruvil.in/, completed with ScopeLimited=false, Score=67/100, 100% coverage, and 87 live events.
 - All 152 Vitest tests, 55 Python tests, and package typechecks pass clean.
+
+## 40. Assessment UI polish, compact accordions, and AI fix prompts [2026-10-17]
+- Mid-scan progress: hid unfinished report during PROVISIONING/RUNNING and added live progress bar with live event count.
+- Information hierarchy: placed actionable findings with Copy AI Fix Prompt button at the top directly under score metrics.
+- Replaced 55-item sprawling check list with 3 compact accordions (Observations, Passed, Deferred) showing 5 items by default with a Show all toggle.
+- Added .bg-grid-subtle background pattern below the Hero section.
+- Unnested finding button and permalink for valid semantic HTML.
+- Validation: 152 Vitest tests passed, 7 monorepo packages typecheck clean.
