@@ -38,15 +38,13 @@ ensureLocalEnvLoaded();
 
 export function executionReadiness() {
   ensureLocalEnvLoaded();
-  const isCloudPlatform = Boolean(process.env.VERCEL || process.env.CF_PAGES);
   const hasInstaBoxCreds = Boolean(
     process.env.INSTABOX_API_KEY &&
     process.env.INSTABOX_SANDBOX_ID &&
-    !process.env.INSTABOX_API_KEY.startsWith("fixture-") // Allow tests to mock/override
+    !process.env.INSTABOX_API_KEY.startsWith("fixture-")
   );
   const isExplicitLocal = process.env.SHIPSAFE_RUNTIME === "local";
-  const isLocalDev = !isCloudPlatform && (isExplicitLocal || process.env.NODE_ENV !== "production" || hasInstaBoxCreds);
-  const configured = isLocalDev && (hasInstaBoxCreds || isExplicitLocal) && apiStore.isPersistent() && !apiStore.hasCleanupFailure();
+  const configured = (hasInstaBoxCreds || isExplicitLocal) && apiStore.isPersistent() && !apiStore.hasCleanupFailure();
   return {
     executionConfigured: configured,
     labEnabled: configured,

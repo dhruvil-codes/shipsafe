@@ -100,7 +100,7 @@ export class ApiScanStore {
   private failed = false;
   private lockToken?: string;
   private readonly dataDirectory?: string;
-  constructor(dataDirectory: string | undefined = process.env.SHIPSAFE_DATA_DIR ?? (process.env.NODE_ENV !== "test" ? resolve(process.cwd(), ".artifacts/local-scans") : undefined)) {
+  constructor(dataDirectory: string | undefined = process.env.SHIPSAFE_DATA_DIR ?? (process.env.VERCEL ? "/tmp/shipsafe-scans" : (process.env.NODE_ENV !== "test" ? resolve(process.cwd(), ".artifacts/local-scans") : undefined))) {
     this.dataDirectory = dataDirectory ? resolve(dataDirectory) : undefined;
   }
   private projects = new Map<string, Project>();
