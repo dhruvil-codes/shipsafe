@@ -1,0 +1,236 @@
+import fs from "node:fs";
+import path from "node:path";
+import { z } from "zod";
+import { getLiveSandbox, type SandboxLike } from "@shipsafe/sandbox/live-runner";
+import { scoreUrlBaseline } from "../../../lib/baseline-score";
+import { apiStore, TERMINAL_STATUSES, type ScanRecord } from "./store";
+import { verifyProject } from "./verification";
+import { assertDeepAuthorization } from "./security-policy";
+import { validateSecurityReport, securityPosture } from "./security-report";
+
+const Check = z.object({ id: z.string().max(80), title: z.string().max(300), status: z.enum(["passed", "observation", "skipped", "failed"]), evidence: z.string().max(12000), remediation: z.string().max(4000).optional() });
+const Report = z.object({ type: z.literal("report"), checks: z.array(Check).max(128), findings: z.array(z.object({ checkId: z.string().max(80), title: z.string().max(300), severity: z.enum(["info", "low", "medium", "high", "critical"]), classification: z.enum(["hardening", "vulnerability"]), description: z.string().max(4000), evidence: z.string().max(12000), remediation: z.string().max(4000) })).max(128), manifest: z.record(z.unknown()) });
+export type BaselineReport = z.infer<typeof Report>;
+export class CleanupError extends Error {}
+export class BaselineExecutionError extends Error {
+  constructor(readonly code: "SCOPE_REJECTED" | "BASELINE_FAILED", readonly reason?: BaselineFailureReason) {
+    super(code === "SCOPE_REJECTED" ? "The request was rejected by the approved scan scope." : "The baseline request could not complete.");
+    this.name = "BaselineExecutionError";
+  }
+}
+const BaselineFailureReason = z.enum(["URL_POLICY", "DNS_POLICY", "REDIRECT_POLICY", "REDIRECT_INVALID", "REDIRECT_PATH", "REDIRECT_HOST", "HTTPS_DOWNGRADE", "REDIRECT_MISSING", "REDIRECT_AMBIGUOUS", "REDIRECT_LIMIT", "RESPONSE_LIMIT", "LAB_POLICY", "CONFIG_POLICY", "SCOPE_POLICY"]);
+type BaselineFailureReason = z.infer<typeof BaselineFailureReason>;
+const failureCopy: Record<BaselineFailureReason, string> = {
+  URL_POLICY: "The URL did not meet the supported exact-host baseline rules.",
+  DNS_POLICY: "DNS resolution did not produce only approved public addresses.",
+  REDIRECT_POLICY: "The site redirected away from the exact approved hostname, downgraded HTTPS, or returned an ambiguous target. ShipSafe stopped without testing another host. If you are authorized for the destination, submit its final canonical HTTPS hostname directly.",
+  REDIRECT_PATH: "A redirect requested an action-like path outside the safe read-only profile. ShipSafe stopped before requesting it.",
+  REDIRECT_INVALID: "The site returned a redirect destination that is invalid or outside the supported URL format. ShipSafe stopped without following it.",
+  REDIRECT_HOST: "The site redirected to a different hostname. ShipSafe stopped without testing that hostname. If you are authorized for it, submit that final canonical HTTPS hostname directly.",
+  HTTPS_DOWNGRADE: "The site redirected from HTTPS to HTTP. ShipSafe stopped to protect the approved transport scope; configure the site to keep the redirect on HTTPS.",
+  REDIRECT_MISSING: "The site returned a redirect without a Location destination, so ShipSafe could not safely continue.",
+  REDIRECT_AMBIGUOUS: "The site returned multiple redirect destinations. ShipSafe stopped because the destination is ambiguous.",
+  REDIRECT_LIMIT: "The site exceeded the baseline redirect limit.",
+  RESPONSE_LIMIT: "The response headers exceeded the baseline's 32 KiB safety cap.",
+  LAB_POLICY: "The request did not match the fixed private lab scope.",
+  CONFIG_POLICY: "The assessment configuration did not meet the baseline policy.",
+  SCOPE_POLICY: "The request was rejected by an exact-host scope safeguard.",
+};
+const LAB_IMAGE = "ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6";
+const shell = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+const python = (source: string) => `python3 -c ${shell(source)}`;
+const state = globalThis as typeof globalThis & { shipSafeQueue?: Promise<void> };
+
+function sourcePath(name = "baseline.py"): string {
+  for (const root of [process.cwd(), path.resolve(process.cwd(), "../..")]) {
+    const file = path.join(root, "packages/sandbox/src", name);
+    if (fs.existsSync(file)) return file;
+  }
+  throw new Error("The baseline engine source is unavailable.");
+}
+
+async function exec(vm: SandboxLike, command: string, timeoutMs = 20000): Promise<string> {
+  const result = await vm.commands.run(command, { timeoutMs }) as { stdout?: string; exitCode?: number };
+  if (result.exitCode && result.exitCode !== 0) throw new Error("VM control command failed; no successful result inferred.");
+  return result.stdout ?? "";
+}
+
+/** A trusted, bounded transport runs on the VM. Lab code runs without external networking. */
+export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (stage: string, message: string, metadata?: { checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }) => void, connect = getLiveSandbox): Promise<BaselineReport> {
+  if (!/^scn_[a-f0-9]{32}$/.test(scan.id)) throw new Error("Invalid scan identity");
+  const securityMode = scan.mode === "standard" || scan.mode === "deep";
+  const authorization = scan.mode === "deep" ? assertDeepAuthorization(apiStore.getExecutionProject(scan.id)!, scan) : undefined;
+  const requireCurrentAuthorization = () => {
+    if (scan.mode === "deep") assertDeepAuthorization(apiStore.getExecutionProject(scan.id)!, scan);
+    if (signal.aborted) throw new Error("Scan cancelled");
+  };
+  requireCurrentAuthorization();
+  const vm = await connect();
+  const directory = `/tmp/shipsafe-baseline-${scan.id}`;
+  const container = `shipsafe-${scan.id}`;
+  let prepared = false;
+  let report: BaselineReport | undefined;
+  let pending = "";
+  let offset = 0;
+  let finished = false;
+  try {
+    requireCurrentAuthorization();
+    await exec(vm, python(`import os,time,re,shutil\nfor name in os.listdir('/tmp'):\n if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue\n p='/tmp/'+name\n if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue\n try:\n  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()\n  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue\n except (FileNotFoundError,ProcessLookupError): pass\n shutil.rmtree(p)\nos.mkdir(${JSON.stringify(directory)},0o700)`));
+    prepared = true;
+    await vm.files.write(`${directory}/baseline.py`, fs.readFileSync(sourcePath(), "utf8").replaceAll("\r\n", "\n"));
+    if (securityMode) {
+      for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
+        await vm.files.write(`${directory}/${file}`, fs.readFileSync(sourcePath(file), "utf8").replaceAll("\r\n", "\n"));
+      }
+    }
+    await vm.files.write(`${directory}/input.json`, JSON.stringify({ mode: scan.mode ?? "website", url: scan.mode === "lab" ? "https://fixture.invalid/" : scan.url, ...(authorization ? { authorization: { hostname: authorization.hostname, expiresAt: authorization.expiresAt, classes: authorization.classes } } : {}) }));
+    requireCurrentAuthorization();
+    const args = scan.mode === "lab"
+      ? ["timeout", "80s", "docker", "run", "--rm", "--name", container, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "128", "--memory", "512m", "--cpus", "1", "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--env", "HOME=/tmp", "--entrypoint", "python3", "-i", LAB_IMAGE, "-u", "-c", `import base64;exec(base64.b64decode("${Buffer.from(fs.readFileSync(sourcePath(), "utf8")).toString("base64")}"))`]
+      : securityMode
+        ? ["prlimit", "--as=268435456", "--cpu=45", "--nproc=32", "--fsize=1048576", "--nofile=64", "--", "timeout", "50s", "python3", "-u", `${directory}/security_engine.py`]
+        : ["timeout", "70s", "python3", "-u", `${directory}/baseline.py`];
+    // No shell evaluates user data. The guest receives no control-plane credentials.
+    await exec(vm, python(`import subprocess,json,os\nd=${JSON.stringify(directory)}\np=subprocess.Popen(['flock','-w','75','/tmp/shipsafe-baseline-worker.lock']+${JSON.stringify(args)},stdin=open(d+'/input.json','rb'),stdout=open(d+'/events.jsonl','wb'),stderr=open(d+'/stderr.log','wb'),env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':'/tmp','LANG':'C.UTF-8'},start_new_session=True)\nopen(d+'/pid','w').write(str(p.pid))`));
+    requireCurrentAuthorization();
+    emit("RUNNING", scan.mode === "lab" ? "Running the owned synthetic fixture on InstaBox. External networking is disabled." : securityMode ? "Running the registered security checks on the exact hostname with pinned public addresses and shared request limits." : "Running the exact-host baseline on InstaBox with pinned public addresses. No exploit templates or path discovery.");
+    const deadline = Date.now() + 165_000;
+    while (Date.now() < deadline) {
+      requireCurrentAuthorization();
+      const chunk = JSON.parse(await exec(vm, python(`import json,os\nd=${JSON.stringify(directory)}\nf=open(d+'/events.jsonl','rb');f.seek(${offset});b=f.read(65536)\nprint(json.dumps({'data':b.decode('utf-8'),'bytes':len(b)}))`))) as { data: string; bytes: number };
+      requireCurrentAuthorization();
+      offset += chunk.bytes;
+      if (offset > 1_000_000) throw new Error("Scanner output exceeded its limit");
+      pending += chunk.data;
+      const lines = pending.split("\n"); pending = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const value: unknown = JSON.parse(line);
+        const envelope = z.object({ type: z.string() }).passthrough().parse(value);
+        if (envelope.type === "report") { report = Report.parse(value); if (securityMode) validateSecurityReport(report, scan, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), authorization?.classes); finished = true; }
+        else if (envelope.type === "error") {
+          const failure = z.object({ type: z.literal("error"), code: z.enum(["SCOPE_REJECTED", "BASELINE_FAILED", "SECURITY_FAILED"]), reason: BaselineFailureReason.optional() }).safeParse(value);
+          throw new BaselineExecutionError(failure.success && failure.data.code === "SCOPE_REJECTED" ? "SCOPE_REJECTED" : "BASELINE_FAILED", failure.success ? failure.data.reason : undefined);
+        }
+        else {
+          const event = z.object({ stage: z.string().max(80), message: z.string().max(16000), checkId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(), status: z.enum(["passed", "observation", "skipped"]).optional(), timestamp: z.string().datetime({ offset: true }).optional() }).safeParse(value);
+          if (event.success) {
+            const metadata = { ...(event.data.checkId ? { checkId: event.data.checkId } : {}), ...(event.data.status ? { status: event.data.status } : {}), ...(event.data.timestamp ? { timestamp: event.data.timestamp } : {}) };
+            if (Object.keys(metadata).length) emit(event.data.stage, event.data.message, metadata);
+            else emit(event.data.stage, event.data.message);
+          }
+        }
+      }
+      if (finished) break;
+      await new Promise(resolve => setTimeout(resolve, 750));
+    }
+    if (!report) throw new Error("Scanner deadline reached without a validated report");
+    return report;
+  } finally {
+    if (prepared) {
+      // Check job identity before signalling; never kill the shared VM.
+      try { await exec(vm, python(`import os,signal,subprocess,shutil,time
+d=${JSON.stringify(directory)}
+try:
+ p=int(open(d+'/pid').read())
+ def members():
+  found=[]
+  for name in os.listdir('/proc'):
+   if not name.isdigit(): continue
+   try:
+    if os.getpgid(int(name))!=p: continue
+    stat=open('/proc/'+name+'/stat').read().rsplit(')',1)[1].split()
+    if stat[0]!='Z': found.append(int(name))
+   except (FileNotFoundError,ProcessLookupError): pass
+  return found
+ live=members()
+ if live:
+  cmd=b' '.join(open('/proc/'+str(n)+'/cmdline','rb').read() for n in live)
+  if d.encode() not in cmd and ${JSON.stringify(container)}.encode() not in cmd: raise RuntimeError('Process identity changed')
+  os.killpg(p,signal.SIGTERM)
+  until=time.monotonic()+2
+  while members() and time.monotonic()<until: time.sleep(.05)
+  if members():
+   os.killpg(p,signal.SIGKILL)
+   until=time.monotonic()+2
+   while members() and time.monotonic()<until: time.sleep(.05)
+  if members(): raise RuntimeError('Process cleanup was not verified')
+except (FileNotFoundError,ProcessLookupError): pass
+r=subprocess.run(['docker','rm','-f',${JSON.stringify(container)}],capture_output=True,timeout=10)
+left=subprocess.run(['docker','ps','-aq','--filter','name=^/'+${JSON.stringify(container)}+'$'],capture_output=True,text=True,timeout=10)
+if left.returncode or left.stdout.strip(): raise RuntimeError('Container cleanup was not verified')
+shutil.rmtree(d)`), 30000); }
+      catch { throw new CleanupError("Job cleanup could not be verified"); }
+      emit("CLEANUP", "Temporary job files and any lab container were removed; the shared VM remains available.");
+    }
+  }
+}
+
+/** One worker drains the local durable queue independently of browser connections. */
+export function kickQueue(): void {
+  if (state.shipSafeQueue) return;
+  state.shipSafeQueue = (async () => {
+    for (;;) {
+      if (apiStore.hasCleanupFailure()) return;
+      const scan = apiStore.listQueuedScans()[0];
+      if (!scan) return;
+      const controller = apiStore.claimExecution(scan.id);
+      if (!controller) continue;
+      const emit = (stage: string, message: string, metadata?: { checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }) => {
+        if (stage === "RUNNING" && !controller.signal.aborted && !TERMINAL_STATUSES.has(apiStore.getScan(scan.id)!.status)) apiStore.updateScan(scan.id, { status: "RUNNING" });
+        return apiStore.addEvent({ scanId: scan.id, stage, message, ...metadata });
+      };
+      try {
+        if (scan.mode !== "lab") {
+          const project = apiStore.getExecutionProject(scan.id);
+          if (!project || scan.scopeAccepted !== true || new URL(project.url).hostname !== new URL(scan.url).hostname) throw new Error("The exact-host authorization attestation is missing or does not match the queued target");
+        }
+        if (scan.mode === "deep") {
+          const project = apiStore.getExecutionProject(scan.id);
+          if (!project) throw new Error("Deep authorization target is missing");
+          assertDeepAuthorization(project, scan);
+          const proof = await verifyProject(project);
+          if (!proof.ok) throw new Error("Domain control could not be reverified before execution");
+          assertDeepAuthorization(proof.project, scan);
+        }
+        emit("PROVISIONING", "Connecting to the shared InstaBox VM. This job has exclusive use of the scan worker.");
+        const report = await runBaseline(scan, controller.signal, emit);
+        if (controller.signal.aborted) continue;
+        if (scan.mode === "deep") assertDeepAuthorization(apiStore.getExecutionProject(scan.id)!, scan);
+        const checks = report.checks;
+        for (const finding of report.findings) apiStore.addFinding({ ...finding, scanId: scan.id });
+        const scopeLimited = report.manifest.scopeLimited === true;
+        const posture = scan.mode === "standard" || scan.mode === "deep" ? securityPosture(report.manifest.unifiedResults, JSON.parse(fs.readFileSync(sourcePath("security_registry.json"), "utf8")), scan.mode) : null;
+        const calculatedBaseline = (!scopeLimited && report.manifest.profile === "bounded-http-hardening") ? scoreUrlBaseline(checks) : null;
+        apiStore.updateScan(scan.id, {
+          status: "COMPLETED",
+          reportManifest: { ...report.manifest, checks, cleanupState: "verified" },
+          ...(scopeLimited ? {} : {
+            score: posture?.value ?? calculatedBaseline?.value,
+            coverage: posture?.coverage ?? Math.round(checks.filter(check => check.status === "passed" || check.status === "observation").length / Math.max(1, checks.length) * 100),
+          }),
+        });
+        const stopReason = BaselineFailureReason.safeParse(report.manifest.scopeStopReason);
+        emit("COMPLETED", scopeLimited
+          ? `${stopReason.success ? failureCopy[stopReason.data] : "The submitted hostname returned a redirect that ShipSafe did not follow."} A partial report of that hostname's redirect response was saved. The redirect destination was not contacted; no baseline score was assigned.`
+          : "Report generated and saved. Coverage applies only to the baseline profile; deeper application controls were not tested.");
+      } catch (error) {
+        if (!controller.signal.aborted) apiStore.updateScan(scan.id, { status: "FAILED" });
+        if (error instanceof CleanupError) {
+          apiStore.updateScan(scan.id, { reportManifest: { cleanupState: "unverified" } });
+          emit("CLEANUP_FAILED", "Cleanup could not be verified. The shared worker is blocked until the operator repairs it, including after cancellation.");
+        } else if (error instanceof BaselineExecutionError) {
+          emit("SCAN_FAILED", error.code === "SCOPE_REJECTED"
+            ? `${error.reason ? failureCopy[error.reason] : "The request was rejected by the approved scan scope."} Temporary job cleanup was verified; no report was generated.`
+            : "The baseline request could not complete. Temporary job cleanup was verified; no report was generated.");
+        }
+        const cleanupUnverified = error instanceof CleanupError;
+        emit(controller.signal.aborted ? "CANCELLED" : "FAILED", controller.signal.aborted
+          ? "Cancellation processed. No successful outcome inferred."
+          : cleanupUnverified
+            ? "Scan failed because job cleanup could not be verified. The shared worker is quarantined; no successful report inferred."
+            : "Scan did not produce a complete report. No score or finding was inferred.");
+      } finally { apiStore.releaseExecution(scan.id); }
+    }
+  })().finally(() => { state.shipSafeQueue = undefined; });
+}

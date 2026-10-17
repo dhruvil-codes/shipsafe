@@ -36,6 +36,12 @@ describe("parseStreamPayload", () => {
     expect(ev).toEqual({ kind: "log", stage: "RUNNING", message: "tls-check: ok" });
   });
 
+  it("preserves structured live check fields and full text", () => {
+    const timestamp = "2026-10-17T12:34:56.789+00:00";
+    const message = "[OBSERVATION] Content Security Policy — " + "detail ".repeat(240);
+    expect(parseStreamPayload(JSON.stringify({ type: "event", stage: "check_done", checkId: "csp", status: "observation", timestamp, message }))).toEqual({ kind: "log", stage: "check_done", checkId: "csp", status: "observation", timestamp, message });
+  });
+
   it("parses JSON result envelopes", () => {
     const ev = parseStreamPayload(
       JSON.stringify({ type: "result", status: "COMPLETED", score: 84, coverage: 100, findingsCount: 3 }),

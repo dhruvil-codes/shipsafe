@@ -1,0 +1,35 @@
+services:
+  shipsafe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shipsafe-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - SHIPSAFE_RUNTIME=local
+      - SHIPSAFE_LAB_ENABLED=1
+      - SHIPSAFE_PORT=3000
+      - INSTABOX_API_KEY=${INSTABOX_API_KEY}
+      - INSTABOX_SANDBOX_ID=${INSTABOX_SANDBOX_ID}
+    volumes:
+      - shipsafe-data:/app/.artifacts/local-scans
+
+  # Optional Cloudflare Tunnel connector:
+  # Allows routing your runs-on.dev / custom domain directly via Cloudflare Edge
+  # with zero open firewall ports and free SSL.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: shipsafe-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - shipsafe
+
+volumes:
+  shipsafe-data:
+    driver: local

@@ -10,6 +10,44 @@ _Security testing for apps built at AI speed._
 | **Hosting**                | Vercel: Next.js, serverless route handlers, Vercel Workflow, Vercel Cron. No separately hosted backend server |
 | **Initial market**         | Indie hackers, SaaS founders, AI-assisted developers, small engineering teams                                 |
 
+## Current product direction — URL-first scan flow (2026-10-16)
+
+### Owner-directed runtime revision: single VM and $0 hosting (2026-10-16)
+
+The owner's subsequent instructions supersede the per-job VM and Vercel hosting assumptions below for this MVP. Use one persistent `shipsafe-vm`, serialize scan jobs and retain per-job temporary-resource cleanup. Never kill the shared VM on normal job completion. This changes the S-19 teardown unit to the job process/container; authorization, exact-host network scope, evidence and credential separation remain required. Use only trusted built-in scanner code; uploaded customer code is out of scope for this persistent credential-bearing host.
+
+Target hosting is Cloudflare Free with an initial workers.dev URL. Deployment is deferred until local behavior is verified. The current local implementation uses an opt-in, single-writer atomic file store; it is not a Cloudflare persistence adapter. Durable Cloudflare storage/dispatch must be connected and tested before public deployment. A separate externally scheduled keepalive is prepared; its 20-minute cadence is not an uptime guarantee or proof that provider idle detection resets.
+
+The local baseline has 13 bounded HTTP/TLS hardening outcomes, no exploit scans and no source/tenant/payment/AI testing. Its report may show the versioned URL baseline check score (passed checks / passed plus observed checks) and profile coverage, clearly separated from the broader confirmed-vulnerability score in Section 15. Skipped and failed tests receive no credit. If the submitted hostname redirects outside the approved hostname (including its conventional www/apex alias) or HTTPS policy, or the redirect response is invalid or ambiguous, ShipSafe records a partial report of that hostname's redirect response only; it does not contact the destination and does not assign the full-profile score or coverage. On URL submission, the user action records an explicit exact-host authorization attestation; DNS TXT setup and a separate consent checkbox are not part of the flow. This attestation is not independent proof of ownership, so the profile stays low-impact, exact-host, rate-limited and technically constrained; production deployment still needs abuse controls and an enforceable acceptable-use process. A fixed owned lab fixture is available for end-to-end verification and must be labeled synthetic. Job execution is independent of browser/SSE connections. Persist reports/events, cap the queue, enforce VM-level mutual exclusion, retain cancelled/failed status and stop the worker if cleanup is unverified. Full details and current limits: [LOCAL-RUNTIME.md](LOCAL-RUNTIME.md).
+
+This user-directed scope supersedes the project/workspace onboarding screens and
+mandatory integration steps described in the original workflow below.
+
+- Enter a website URL on the landing page. Open output inline without
+  navigation to another page. No project name, environment, GitHub, team, login,
+  workspace or settings screen is required.
+- Open a terminal-only assessment panel and start the URL baseline as soon as the
+  user submits a URL. Do not show an ownership column, DNS setup or separate
+  authorization checkbox. The Scan action itself records the user's exact-host
+  authorization attestation; backend scope and network safeguards remain required.
+- Show actual server/scanner events in the Magic UI Terminal. Keep results,
+  captured evidence, remediation and repeated runs on the same page.
+- A scan tree groups this browser's targets and recorded runs. Legacy UI routes
+  redirect to the landing scan or scan tree. Internal owner/target identifiers
+  remain implementation details and retain access isolation.
+- Website-only assessment cannot confirm source, dependency, authenticated,
+  database or AI controls without additional access. Mark them untested.
+- The opt-in local worker uses the shared InstaBox VM, a bounded trusted transport,
+  a durable single-writer queue and verified job cleanup. Outside configured local
+  mode, the API fails closed. A Cloudflare storage/dispatch adapter and production
+  validation remain required before public deployment. An unavailable runner must
+  not produce simulated output, scores or findings.
+
+Acceptance: one URL submission creates the target, records the user's exact-host
+authorization attestation and queues the bounded baseline without DNS setup;
+old routes return to the landing flow; recorded scan selection stays inline;
+failures/disconnections stay explicit; mobile reflows without horizontal overflow.
+
 ## 0. How to Use This Document
 
 This PRD is written for both humans and coding agents.
@@ -87,7 +125,7 @@ These apply to every feature and every line of code.
 
 1. **Evidence first.** A confirmed finding MUST be backed by scanner output or a recorded test result. An LLM MUST NOT create a confirmed vulnerability.
 2. **No credit for what did not run.** Skipped, failed or inconclusive checks MUST NOT improve a score. A failed tool execution is never a passed test.
-3. **Authorization before action.** No scan runs against a target without current ownership verification and explicit scope acceptance. Active testing needs separate approval.
+3. **Authorization before action.** URL baseline requires an explicit user action that attests they own or are authorized to assess the exact hostname; the backend records that attestation and enforces exact-host network scope. This attestation is not independent ownership proof. Active testing requires separate approval and stronger authorization.
 4. **Policy lives in the backend.** Scan profiles, scope and limits are enforced by deterministic backend code, never by an LLM.
 5. **Untrusted outputs.** Scanner output and LLM-generated content are untrusted input. They cannot issue commands or override policy.
 6. **Tenant isolation.** Every query is scoped to a workspace. Secrets and artifacts are isolated per tenant.
@@ -236,10 +274,10 @@ This is a security product, so its own attack surface needs explicit controls.
 
 ### Target authorization
 
-- **S-01** Domain ownership verification before scanning.
-- **S-02** Explicit acceptance of scan scope.
+- **S-01** Record the user's ownership/authorization attestation on every URL baseline scan.
+- **S-02** Enforce exact-host scope and public-address validation in the backend and scanner.
 - **S-03** Separate approval for active testing.
-- **S-04** Reverification after ownership changes or policy expiry.
+- **S-04** Recheck target scope at dispatch; DNS ownership verification is not required for the low-impact URL baseline.
 - **S-05** No third-party targets without valid authorization.
 
 ### Network isolation

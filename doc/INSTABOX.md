@@ -1,5 +1,7 @@
 # InstaBox Reference & Integration Guide
 
+Owner-directed MVP revision (2026-10-16): use the single persistent `shipsafe-vm` with serialized jobs. S-19 now requires cleanup of each job's process/container and files, not deletion of the shared VM. Use only the built-in trusted baseline collector on this Vault-enabled preparation host; arbitrary customer code/builds are not supported. Domain authorization, deterministic exact-host public-address scope and backend-driven credential-free job execution remain required. The isolated per-job VM material below describes the earlier architecture. Current implementation and deployment limits: [LOCAL-RUNTIME.md](LOCAL-RUNTIME.md).
+
 Official Documentation Source: [https://instabox.sh/docs](https://instabox.sh/docs)  
 Provider: InsForge AI, Inc.  
 SDK Package: `@insforge/instabox-sdk`

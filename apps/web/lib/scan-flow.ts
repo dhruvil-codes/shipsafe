@@ -84,7 +84,7 @@ export function normalizeUrlInput(raw: string): { ok: true; url: string } | { ok
 export type StreamEvent =
   | { kind: "sandbox"; sandboxId: string }
   | { kind: "vmstatus"; status: string }
-  | { kind: "log"; stage: string; message: string }
+  | { kind: "log"; stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }
   | { kind: "stdout"; text: string }
   | { kind: "error"; message: string }
   | { kind: "result"; status: string; score: number | null; coverage: number | null; findingsCount: number }
@@ -112,6 +112,9 @@ export function parseStreamPayload(data: string): StreamEvent {
         kind: "log",
         stage: String(obj["stage"] ?? ""),
         message: String(obj["message"] ?? ""),
+        ...(typeof obj["checkId"] === "string" ? { checkId: obj["checkId"] } : {}),
+        ...(obj["status"] === "passed" || obj["status"] === "observation" || obj["status"] === "skipped" ? { status: obj["status"] } : {}),
+        ...(typeof obj["timestamp"] === "string" ? { timestamp: obj["timestamp"] } : {}),
       };
     }
     if (obj["type"] === "stdout") {
@@ -192,6 +195,8 @@ export interface ApiFindingRecord {
   evidence: string;
   remediation: string;
   cwe?: string;
+  classification?: "hardening" | "vulnerability";
+  checkId?: string;
 }
 
 /** Map API FindingRecords to UI findings (source: web). */

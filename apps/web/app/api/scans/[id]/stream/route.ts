@@ -1,233 +1,60 @@
-import { apiStore } from "../../../_lib/store";
-import {
-  getLiveSandbox,
-  loadRunnerFiles,
-  resolveRemoteBase,
-  resolveRunnerDir,
-  runLiveScan,
-  syncRunnerToVM,
-} from "@shipsafe/sandbox/live-runner";
-import { normalize, normalizeOsint } from "@shipsafe/adapters";
-import { computeScore } from "@shipsafe/scoring";
-import { ToolResultSchema, type ToolResult } from "@shipsafe/shared";
+import { apiStore, TERMINAL_STATUSES } from "../../../_lib/store";
+import { json, workspaceId } from "../../../_lib/workspace";
+import { executionReadiness, executionUnavailable } from "../../../_lib/readiness";
+import { kickQueue } from "../../../_lib/baseline-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Full baseline + OSINT scan can run ~7 minutes; allow a long stream. */
-export const maxDuration = 600;
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
-function sseLine(payload: unknown): string {
-  return `data: ${JSON.stringify(payload)}\n\n`;
-}
-
-function sseError(message: string): string {
-  return sseLine({ type: "error", message });
-}
-
-const DONE = "event: done\ndata: {}\n\n";
-
-function isToolResult(value: unknown): value is ToolResult {
-  return ToolResultSchema.safeParse(value).success;
-}
-
-/**
- * GET /api/scans/:id/stream — live scan execution over Server-Sent Events.
- *
- * Pure Real Execution Mode: connects to the live InstaBox micro-VM, syncs
- * the runner scripts, executes the real scanners, and streams genuine VM
- * stdout line-by-line. No mock generators, no demo replays. When the VM
- * is unreachable the stream carries the exact error and terminates.
- */
-export async function GET(
-  request: Request,
-  context: RouteContext,
-): Promise<Response> {
+/** Replay persisted events, then follow the worker without tying execution to the browser. */
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
-  const scan = apiStore.getScan(id);
-  if (!scan) {
-    return Response.json({ error: "Scan not found" }, { status: 404 });
+  const scan = apiStore.ownedScan(workspaceId(request), id);
+  if (!scan) return json({ error: "Scan not found" }, 404);
+  if (!TERMINAL_STATUSES.has(scan.status) && !executionReadiness().executionConfigured) {
+    if (scan.status !== "QUEUED") return json({ error: "This scan already has an execution in progress", code: "SCAN_ALREADY_RUNNING" }, 409);
+    return json(executionUnavailable(), 503);
   }
-
-  const storedEvents = apiStore.listEvents(id);
+  if (executionReadiness().executionConfigured) kickQueue();
   const encoder = new TextEncoder();
-  const signal = request.signal;
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const enqueue = (text: string) => {
-        controller.enqueue(encoder.encode(text));
+  let stop = () => {};
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let stopped = false;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      let cursor = request.headers.get("last-event-id");
+      const known = apiStore.listEvents(id);
+      let seen = cursor ? known.findIndex(event => event.id === cursor) + 1 : 0;
+      const send = (text: string) => controller.enqueue(encoder.encode(text));
+      stop = () => {
+        if (stopped) return;
+        stopped = true;
+        if (timer) clearInterval(timer);
+        request.signal.removeEventListener("abort", stop);
+        try { controller.close(); } catch { /* Already cancelled by the consumer. */ }
       };
-      const fail = (message: string, stage: string) => {
-        apiStore.updateScan(id, { status: "FAILED" });
-        apiStore.addEvent({ scanId: id, stage, message });
-        enqueue(sseError(message));
-        enqueue(DONE);
-        controller.close();
+      const tick = () => {
+        if (stopped) return;
+        try {
+          const events = apiStore.listEvents(id);
+          for (const event of events.slice(seen)) send(`id: ${event.id}\ndata: ${JSON.stringify({ type: "event", ...event })}\n\n`);
+          seen = events.length;
+          const current = apiStore.getScan(id);
+          if (current && TERMINAL_STATUSES.has(current.status)) {
+            send(`data: ${JSON.stringify({ type: "result", scanId: id, status: current.status, score: current.score ?? null, coverage: current.coverage ?? null, findingsCount: apiStore.listFindings(id).length })}\n\nevent: done\ndata: {}\n\n`);
+            stop();
+          } else send(": heartbeat\n\n");
+        } catch { stop(); }
       };
-
-      enqueue(": connected\n\n");
-      for (const event of storedEvents) {
-        enqueue(
-          sseLine({
-            type: "event",
-            scanId: event.scanId,
-            stage: event.stage,
-            message: event.message,
-            timestamp: event.timestamp,
-          }),
-        );
-      }
-
-      if (signal.aborted) {
-        controller.close();
-        return;
-      }
-
-      // --- connect to the live micro-VM ---
-      apiStore.updateScan(id, { status: "PROVISIONING" });
-      apiStore.addEvent({ scanId: id, stage: "PROVISIONING", message: "Connecting to live InstaBox micro-VM" });
-      let sbx;
-      try {
-        sbx = await getLiveSandbox();
-      } catch (err) {
-        const message = `[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`;
-        fail(message, "PROVISIONING");
-        return;
-      }
-      enqueue(
-        sseLine({
-          type: "event",
-          scanId: id,
-          stage: "PROVISIONING",
-          message: "Connected to live InstaBox micro-VM",
-          timestamp: new Date().toISOString(),
-        }),
-      );
-
-      // --- sync runner scripts ---
-      let runnerDir: string;
-      let remoteBase: string;
-      try {
-        runnerDir = resolveRunnerDir(process.cwd());
-        remoteBase = await resolveRemoteBase(sbx);
-      } catch (err) {
-        fail(
-          `[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`,
-          "PROVISIONING",
-        );
-        return;
-      }
-      try {
-        await syncRunnerToVM(sbx, remoteBase, loadRunnerFiles(runnerDir));
-      } catch (err) {
-        fail(
-          `[ERROR] Failed to sync runner scripts to InstaBox Micro-VM: ${(err as Error).message}`,
-          "PROVISIONING",
-        );
-        return;
-      }
-
-      // --- execute the real scanners, streaming genuine stdout ---
-      apiStore.updateScan(id, { status: "RUNNING" });
-      apiStore.addEvent({ scanId: id, stage: "RUNNING", message: "Executing live scan on micro-VM" });
-      let live;
-      try {
-        live = await runLiveScan(
-          sbx,
-          scan.url,
-          {
-            onStdout: (chunk: string) => {
-              enqueue(sseLine({ type: "stdout", scanId: id, text: chunk }));
-            },
-          },
-          { signal, remoteBase },
-        );
-      } catch (err) {
-        if (signal.aborted) {
-          apiStore.updateScan(id, { status: "CANCELLED" });
-          apiStore.addEvent({ scanId: id, stage: "CANCELLED", message: "Stream disconnected; live run aborted" });
-          controller.close();
-          return;
-        }
-        fail(
-          `[ERROR] Live scan failed on InstaBox Micro-VM: ${(err as Error).message}`,
-          "RUNNING",
-        );
-        return;
-      }
-
-      // --- normalize genuine findings, score, persist ---
-      apiStore.updateScan(id, { status: "PROCESSING" });
-      const scanTools = (
-        typeof live.scanResult === "object" &&
-        live.scanResult !== null &&
-        Array.isArray((live.scanResult as Record<string, unknown>)["tools"])
-          ? ((live.scanResult as Record<string, unknown>)["tools"] as unknown[])
-          : []
-      ).filter(isToolResult);
-      const osintTools = isToolResult(live.osintResult) ? [live.osintResult] : [];
-      const findings = [
-        ...normalize(scanTools, scan.url),
-        ...normalizeOsint(osintTools, scan.url),
-      ];
-      const passedChecks = [...scanTools, ...osintTools]
-        .filter((t) => t.status === "passed")
-        .reduce((sum, t) => sum + t.checksAttempted, 0);
-      const missed = [...scanTools, ...osintTools].filter((t) => t.status !== "passed").length;
-      // A scan that produced no ToolResults at all assessed nothing.
-      const assessed = scanTools.length + osintTools.length === 0 ? 0 : passedChecks;
-      const applicable = assessed + missed;
-      const score = computeScore(findings, assessed, applicable);
-      apiStore.updateScan(id, {
-        status: "COMPLETED",
-        score: score.overall,
-        coverage: score.coverage,
-      });
-      for (const f of findings) {
-        apiStore.addFinding({
-          scanId: id,
-          severity: f.severity,
-          title: f.title,
-          description: f.description,
-          evidence: JSON.stringify(f.evidence),
-          remediation: f.remediation,
-          cwe: f.cwe,
-        });
-      }
-      apiStore.addEvent({
-        scanId: id,
-        stage: "COMPLETED",
-        message: `Live scan completed: ${findings.length} findings, score ${score.overall}`,
-      });
-      enqueue(
-        sseLine({
-          type: "result",
-          scanId: id,
-          status: "COMPLETED",
-          score: score.overall,
-          coverage: score.coverage,
-          findingsCount: findings.length,
-        }),
-      );
-      enqueue(DONE);
-      controller.close();
+      send(": connected\n\n");
+      request.signal.addEventListener("abort", stop, { once: true });
+      if (request.signal.aborted) { stop(); return; }
+      tick();
+      if (!stopped) timer = setInterval(tick, 750);
     },
-    cancel() {
-      // Client disconnected mid-scan: the runLiveScan abort listener kills
-      // the background VM command; the store update happens in start().
-    },
+    cancel() { stop(); },
   });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
+  return new Response(body, {
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store, no-transform", "Vary": "Cookie", "X-Accel-Buffering": "no" },
   });
 }

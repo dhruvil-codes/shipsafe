@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "scan:local": "bun scripts/local-scan.mjs",
     "dev": "bun --filter @shipsafe/web dev",
     "build": "bun --filter \"*\" build",
     "test": "bun --filter \"*\" test",

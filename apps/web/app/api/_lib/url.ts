@@ -1,92 +1,37 @@
+import { isIP } from "node:net";
 import { z } from "zod";
 
-const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-
-function isPrivateIpv4(host: string): boolean {
-  const m = IPV4_RE.exec(host);
-  if (!m) return false;
-  const [a, b] = [Number(m[1]), Number(m[2])];
-  if (a === 10) return true; // RFC 1918
-  if (a === 172 && b >= 16 && b <= 31) return true; // RFC 1918
-  if (a === 192 && b === 168) return true; // RFC 1918
-  if (a === 127) return true; // loopback
-  if (a === 169 && b === 254) return true; // link-local + cloud metadata
-  if (a === 0) return true; // unspecified
-  return false;
+/** DNS ownership applies to a public hostname, never an IP or local service. */
+export function publicProjectUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return ["https:", "http:"].includes(url.protocol) &&
+      !url.username && !url.password && !url.hash && !url.search &&
+      (!url.port || url.port === (url.protocol === "https:" ? "443" : "80")) &&
+      !isIP(host) && !host.includes(":") && host.length <= 253 &&
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(host) &&
+      host.split(".").every((label) => label.length <= 63) &&
+      !["localhost", "local", "internal", "test", "invalid", "example", "onion", "home", "lan"].some(
+        (suffix) => host === suffix || host.endsWith(`.${suffix}`),
+      ) && !/^\d+$/.test(host.split(".").at(-1) ?? "");
+  } catch {
+    return false;
+  }
 }
 
-function isBlockedHostname(host: string): string | null {
-  const h = host.toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost")) return "loopback host";
-  if (h === "::1" || h === "[::1]") return "loopback address";
-  // Bracketed IPv6 from URL parsing keeps brackets; strip for checks.
-  const bare = h.replace(/^\[(.*)\]$/, "$1");
-  if (bare === "::1") return "loopback address";
-  if (bare.startsWith("fe80:")) return "link-local address";
-  if (bare.startsWith("fc00:") || bare.startsWith("fd00:")) {
-    return "private address";
-  }
-  if (bare.startsWith("::ffff:")) {
-    // IPv4-mapped IPv6: check the embedded IPv4 address.
-    const embedded = bare.slice("::ffff:".length);
-    if (isPrivateIpv4(embedded)) return "private address";
-  }
-  if (isPrivateIpv4(h)) return "private address";
-  if (
-    h === "metadata.google.internal" ||
-    h === "instance-data" ||
-    h.endsWith(".internal")
-  ) {
-    return "metadata/blocked host";
-  }
-  return null;
-}
+export const ProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  url: z.string().max(2048).refine(publicProjectUrl, "Use a public http(s) domain URL without credentials, fragments, or custom ports"),
+  environment: z.enum(["production", "staging", "development"]),
+}).strict();
 
-/**
- * MVP authorization stub: accept any well-formed public http(s) URL.
- * Validates shape (protocol, parseable host) and best-effort blocks
- * private/loopback/link-local/metadata ranges (S-07). Full DNS-resolution
- * and redirect-rebinding checks live in `packages/safe-fetch` (Agent 2/WS-2
- * scope) and MUST gate real scan execution.
- */
 export const CreateScanSchema = z.object({
-  url: z
-    .string()
-    .min(1, "url is required")
-    .refine(
-      (value) => {
-        let parsed: URL;
-        try {
-          parsed = new URL(value);
-        } catch {
-          return false;
-        }
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          return false;
-        }
-        if (!parsed.hostname) return false;
-        return isBlockedHostname(parsed.hostname) === null;
-      },
-      (value) => {
-        let reason = "must be a valid http(s) URL";
-        try {
-          const parsed = new URL(value);
-          if (
-            parsed.protocol !== "http:" &&
-            parsed.protocol !== "https:"
-          ) {
-            reason = "only http and https URLs are allowed";
-          } else {
-            const blocked = isBlockedHostname(parsed.hostname);
-            if (blocked) reason = `blocked target: ${blocked}`;
-          }
-        } catch {
-          reason = "must be a valid http(s) URL";
-        }
-        return { message: `Invalid scan target: ${reason}` };
-      },
-    ),
-  projectName: z.string().min(1).max(120).optional(),
+  projectId: z.string().min(1).max(128),
+  scopeAccepted: z.literal(true),
+  mode: z.enum(["standard", "deep"]).default("standard"),
+  authorizationId: z.string().min(1).max(128).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.mode === "deep" && !value.authorizationId) context.addIssue({ code: z.ZodIssueCode.custom, message: "Deep scans require a verified authorizationId" });
+  if (value.mode === "standard" && value.authorizationId) context.addIssue({ code: z.ZodIssueCode.custom, message: "Authorization applies only to Deep scans" });
 });
-
-export type CreateScanInput = z.infer<typeof CreateScanSchema>;

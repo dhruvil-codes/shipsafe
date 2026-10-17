@@ -11,3 +11,8 @@ dashboard.html
 .env*.local
 !.env.example
 .taste-skill/
+
+.artifacts/
+.data/
+__pycache__/
+*.pyc

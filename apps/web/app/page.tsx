@@ -1,386 +1,310 @@
-"use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
-import DitherBackground from "../components/DitherBackground";
-import LiveExhibit from "../components/LiveExhibit";
-import Reveal from "../components/Reveal";
-import SiteNav from "../components/SiteNav";
-import ScanConsole from "../components/ScanConsole";
-import ScanResults from "../components/ScanResults";
-import type { VmStatus } from "../components/TerminalWindow";
+import Link from "next/link";
+import HeroASCII from "@/components/HeroASCII";
+import { Fingerprint, ScanLine, ShieldCheck } from "lucide-react";
 import {
-  advanceEngines,
-  finalizeEngines,
-  initialEngines,
-  mapApiFindings,
-  parseStreamPayload,
-  type ApiFindingRecord,
-  type EngineCheck,
-  type OsintSummary,
-  type ScanPhase,
-  type UiFinding,
-} from "../lib/scan-flow";
+  Badge,
+  ButtonLink,
+  Logo,
+  OraNav,
+} from "@/components/product-ui";
+import {
+  FindingTabs,
+  LimitsAccordion,
+  ScanForm,
+} from "@/components/landing";
 
-const MAX_LINES = 500;
+type Grade = "Active Baseline" | "Deep Profile" | "Artifact Audit" | "Sandbox Test";
 
-const VM_LABEL: Record<VmStatus, string> = {
-  ready: "VM ready",
-  provisioning: "Provisioning",
-  active: "Micro-VM active",
-  executing: "Agent executing",
-  "torn-down": "Torn down",
+const GRADE_CLASS: Record<Grade, string> = {
+  "Active Baseline": "g-green",
+  "Deep Profile": "g-blue",
+  "Artifact Audit": "g-blue",
+  "Sandbox Test": "g-green",
 };
 
-const ENGINES = [
+const BOARD: { title: string; rows: { name: string; grade: Grade }[] }[] = [
   {
-    name: "subfinder",
-    href: "https://github.com/projectdiscovery/subfinder",
-    body: "Passive subdomain enumeration across certificate transparency and DNS sources. Every name is probed live — none is trusted blind.",
+    title: "Perimeter & TLS",
+    rows: [
+      { name: "Security headers (CSP, HSTS, XFO)", grade: "Active Baseline" },
+      { name: "TLS certificate & cipher suite", grade: "Active Baseline" },
+      { name: "HTTPS redirect hygiene", grade: "Active Baseline" },
+      { name: "MIME sniffing & framing defense", grade: "Active Baseline" },
+      { name: "Referrer policy & COOP/COEP", grade: "Active Baseline" },
+    ],
   },
   {
-    name: "httpx",
-    href: "https://github.com/projectdiscovery/httpx",
-    body: "Live-host probing with technology fingerprinting, status codes and server banners for each discovered subdomain.",
+    title: "Cookies & Session",
+    rows: [
+      { name: "Secure & HttpOnly attributes", grade: "Active Baseline" },
+      { name: "SameSite isolation (Strict/Lax)", grade: "Active Baseline" },
+      { name: "__Host- & __Secure- prefixes", grade: "Active Baseline" },
+      { name: "Session invalidation on logout", grade: "Deep Profile" },
+      { name: "Session fixation & token replay", grade: "Deep Profile" },
+    ],
   },
   {
-    name: "subzy",
-    href: "https://github.com/PentestPad/subzy",
-    body: "Subdomain-takeover detection against dangling records. A match is a critical finding with the fingerprint as evidence.",
+    title: "API & Data Exposure",
+    rows: [
+      { name: "Stack trace & debug error leakage", grade: "Active Baseline" },
+      { name: "CORS wildcard & origin reflection", grade: "Active Baseline" },
+      { name: "Server banner & version disclosure", grade: "Active Baseline" },
+      { name: "BOLA & Object authorization", grade: "Deep Profile" },
+      { name: "Multi-tenant boundary isolation", grade: "Deep Profile" },
+    ],
   },
   {
-    name: "checkdmarc",
-    href: "https://github.com/domainaware/checkdmarc",
-    body: "SPF and DMARC validation. Missing enforcement is a high finding; a permissive p=none policy is medium.",
-  },
-  {
-    name: "whois",
-    href: "https://github.com/rfc1036/whois",
-    body: "Registration age, registrar and expiry. A domain expiring within 30 days is flagged before it can lapse.",
-  },
-  {
-    name: "TLS prober",
-    href: "/scan/demo",
-    body: "Certificate validity, negotiated protocol and cipher suites, plus security headers, cookies, CORS and sensitive-file probes.",
+    title: "App & Integrations",
+    rows: [
+      { name: "Supabase / Postgres RLS review", grade: "Deep Profile" },
+      { name: "Client-side secret & key leaks", grade: "Artifact Audit" },
+      { name: "Payment webhook signature & replay", grade: "Sandbox Test" },
+      { name: "Vulnerable dependencies & CVEs", grade: "Artifact Audit" },
+      { name: "AI prompt injection & tool boundaries", grade: "Sandbox Test" },
+    ],
   },
 ];
 
-/**
- * One-page landing in the editorial blueprint language. The scan console in
- * the hero runs a real micro-VM scan; results render in-flow below it.
- */
-export default function LandingPage() {
-  const [phase, setPhase] = useState<ScanPhase>("idle");
-  const [target, setTarget] = useState("");
-  const [scanId, setScanId] = useState<string | null>(null);
-  const [lines, setLines] = useState<string[]>([]);
-  const [engines, setEngines] = useState<EngineCheck[]>(initialEngines);
-  const [findings, setFindings] = useState<UiFinding[]>([]);
-  const [osint, setOsint] = useState<OsintSummary | null>(null);
-  const [score, setScore] = useState<number | null>(null);
-  const [coverage, setCoverage] = useState<number | null>(null);
-  const [sandboxId, setSandboxId] = useState("sbx_pending");
-  const [vmStatus, setVmStatus] = useState<VmStatus>("ready");
-  const [error, setError] = useState<string | null>(null);
-  const sourceRef = useRef<EventSource | null>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    document.title = "ShipSafe — ship fast, know what's exposed";
-    return () => {
-      sourceRef.current?.close();
-    };
-  }, []);
-
-  const reset = useCallback(() => {
-    sourceRef.current?.close();
-    sourceRef.current = null;
-    setPhase("idle");
-    setTarget("");
-    setScanId(null);
-    setLines([]);
-    setEngines(initialEngines());
-    setFindings([]);
-    setOsint(null);
-    setScore(null);
-    setCoverage(null);
-    setSandboxId("sbx_pending");
-    setVmStatus("ready");
-    setError(null);
-  }, []);
-
-  const failScan = useCallback((message: string) => {
-    setLines((prev) => [...prev.slice(-MAX_LINES), message]);
-    setError(message);
-    setEngines((prev) => finalizeEngines(prev));
-    setVmStatus("torn-down");
-  }, []);
-
-  const finishFromApi = useCallback(
-    async (id: string) => {
-      try {
-        const res = await fetch(`/api/scans/${id}`);
-        if (!res.ok) throw new Error(`fetch failed (${res.status})`);
-        const data = (await res.json()) as {
-          scan?: { score?: number | null; coverage?: number | null };
-          findings?: ApiFindingRecord[];
-        };
-        setScore(typeof data.scan?.score === "number" ? data.scan.score : null);
-        setCoverage(typeof data.scan?.coverage === "number" ? data.scan.coverage : null);
-        setFindings(mapApiFindings(data.findings ?? []));
-        setOsint(null);
-      } catch (err) {
-        failScan(`[ERROR] Failed to load scan results: ${(err as Error).message}`);
-        return;
-      }
-      setEngines((prev) => finalizeEngines(prev));
-      setVmStatus("torn-down");
-      setPhase("completed");
-    },
-    [failScan],
-  );
-
-  const streamFromApi = useCallback(
-    (id: string) => {
-      let settled = false;
-      let source: EventSource;
-      try {
-        source = new EventSource(`/api/scans/${id}/stream`);
-      } catch (err) {
-        failScan(`[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`);
-        return;
-      }
-      sourceRef.current = source;
-      const close = () => {
-        source.close();
-        if (sourceRef.current === source) sourceRef.current = null;
-      };
-      const handlePayload = (data: string) => {
-        const ev = parseStreamPayload(data);
-        switch (ev.kind) {
-          case "sandbox":
-            if (ev.sandboxId) setSandboxId(ev.sandboxId);
-            break;
-          case "vmstatus":
-            break;
-          case "log":
-            settled = true;
-            setLines((prev) => [...prev, `[${ev.stage.toLowerCase()}] ${ev.message}`].slice(-MAX_LINES));
-            setEngines((prev) => advanceEngines(prev, ev.stage, ev.message));
-            if (/provision/i.test(ev.stage)) setVmStatus("provisioning");
-            else if (/process/i.test(ev.stage)) setVmStatus("executing");
-            else setVmStatus("active");
-            break;
-          case "stdout":
-            if (ev.text) {
-              settled = true;
-              setLines((prev) => [...prev, ...ev.text.split("\n").filter((p) => p.length > 0)].slice(-MAX_LINES));
-              for (const line of ev.text.split("\n")) {
-                if (line) setEngines((prev) => advanceEngines(prev, "", line));
-              }
-              setVmStatus("executing");
-            }
-            break;
-          case "error":
-            close();
-            failScan(ev.message);
-            break;
-          case "result":
-            if (typeof ev.score === "number") setScore(ev.score);
-            if (typeof ev.coverage === "number") setCoverage(ev.coverage);
-            break;
-          case "done":
-            close();
-            void finishFromApi(id);
-            break;
-          case "line":
-            if (ev.text) {
-              settled = true;
-              setLines((prev) => [...prev, ev.text].slice(-MAX_LINES));
-              setEngines((prev) => advanceEngines(prev, "", ev.text));
-            }
-            break;
-        }
-      };
-      source.onmessage = (msg) => handlePayload(String(msg.data ?? ""));
-      source.addEventListener("done", () => {
-        close();
-        void finishFromApi(id);
-      });
-      source.onerror = () => {
-        if (!settled) {
-          close();
-          failScan(
-            `[ERROR] Failed to connect to InstaBox Micro-VM: event-stream to /api/scans/${id}/stream failed before any output`,
-          );
-        }
-      };
-    },
-    [finishFromApi, failScan],
-  );
-
-  const startScan = useCallback(
-    async (url: string) => {
-      reset();
-      setTarget(url);
-      setPhase("scanning");
-      setVmStatus("provisioning");
-      setLines([`$ shipsafe scan ${url}`]);
-      requestAnimationFrame(() => {
-        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-      try {
-        const res = await fetch("/api/scans", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-        if (!res.ok) throw new Error(`scan request failed (${res.status})`);
-        const data = (await res.json()) as { scanId?: string; scan_id?: string };
-        const id = data.scanId ?? data.scan_id;
-        if (!id) throw new Error("scan request returned no id");
-        setScanId(id);
-        setSandboxId(`sbx_live_${id.replace(/[^a-z0-9]/gi, "").slice(-10)}`);
-        streamFromApi(id);
-      } catch (err) {
-        failScan(`[ERROR] Failed to connect to InstaBox Micro-VM: ${(err as Error).message}`);
-      }
-    },
-    [reset, streamFromApi, failScan],
-  );
-
-  const cancelScan = useCallback(async () => {
-    if (!scanId || phase !== "scanning") return;
-    try {
-      await fetch(`/api/scans/${scanId}/cancel`, { method: "POST" });
-      setLines((prev) =>
-        [...prev, "[cancel] cancellation requested — sandbox teardown initiated"].slice(-MAX_LINES),
-      );
-    } catch {
-      // best effort; reconciler enforces teardown server-side
-    }
-  }, [scanId, phase]);
-
-  const scanning = phase === "scanning";
-  const capped = score !== null && score <= 40 && findings.some((f) => f.severity === "critical");
-
+export default function HomePage() {
   return (
-    <div className="ds-page" id="top">
-      <DitherBackground />
-      <div className="ds-frame">
-        <SiteNav />
-        <main>
-          <section className="ds-hero" aria-label="Introduction">
-            <p className="ds-badge">
-              Live disposable micro-VM scan
-              <a href="#scan">Try now →</a>
-            </p>
-            <h1>Ship fast. Know what&rsquo;s exposed.</h1>
-            <p className="ds-sub">
-              Every scan runs on an isolated Linux micro-VM that streams each tool&rsquo;s output
-              live — then turns genuine evidence into fixes, not guesses.
-            </p>
-            <ScanConsole scanning={scanning} onSubmit={(url) => void startScan(url)} />
-          </section>
-
-          {phase !== "idle" && (
-            <div ref={resultsRef} className="ds-results-anchor">
-              <ScanResults
-                target={target}
-                scanId={scanId}
-                sandboxLabel={sandboxId}
-                vmLabel={VM_LABEL[vmStatus]}
-                lines={lines}
-                engines={engines}
-                findings={findings}
-                osint={osint}
-                score={score}
-                coverage={coverage}
-                capped={capped}
-                error={error}
-                scanning={scanning}
-                onCancel={() => void cancelScan()}
-              />
-              <button type="button" className="ds-btn-quiet" onClick={reset}>
-                Start over
-              </button>
-            </div>
-          )}
-
-          <section className="ds-section" id="how" aria-label="How it works">
-            <Reveal>
-              <h2>From URL to verified fixes in one sitting.</h2>
-            </Reveal>
-            <div className="ds-how">
-              <div>
-                <h3>Submit a URL</h3>
-                <p>
-                  Enter your app&rsquo;s address. Scope checks block private ranges and metadata
-                  endpoints before anything runs — a scan starts only against a public target.
-                </p>
-              </div>
-              <div>
-                <h3>Watch the micro-VM work</h3>
-                <p>
-                  The runner executes pinned open-source scanners inside a disposable sandbox and
-                  streams every line. The machine is torn down when the run ends, pass or fail.
-                </p>
-              </div>
-              <div>
-                <h3>Fix with evidence</h3>
-                <p>
-                  Each finding carries scanner output, severity and a copy-paste fix, plus one AI
-                  prompt that bundles the whole report for your coding assistant.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="ds-section ds-section-tone" id="engines" aria-label="Scan engines">
-            <Reveal>
-              <h2>Real tools, pinned versions, raw output.</h2>
-              <p className="ds-lede">
-                No black boxes. The same binaries run on every scan and their stdout ships with the
-                report.
-              </p>
-            </Reveal>
-            <ul className="ds-engines-list">
-              {ENGINES.map((e) => (
-                <li key={e.name}>
-                  <a href={e.href}>{e.name}</a>
-                  <p>{e.body}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <LiveExhibit />
-
-          <section className="ds-section" aria-label="Guarantees">            <Reveal>
-              <h2>What a score never claims.</h2>
-            </Reveal>
-            <div className="ds-guarantees">
-              <p>
-                <strong>Evidence first.</strong> A finding without scanner output does not exist.
-              </p>
-              <p>
-                <strong>No credit for unrun checks.</strong> Skipped or failed tools never raise
-                a score.
-              </p>
-              <p>
-                <strong>Disposable compute.</strong> At most 5 micro-VMs, 4 concurrent commands,
-                10 minutes per command — then teardown, always.
-              </p>
-            </div>
-          </section>
-        </main>
-        <footer className="ds-footer">
-          <p className="ds-footer-mark">ShipSafe</p>
-          <p>
-            Security testing for apps built at AI speed. Scores are assessments, never
-            certifications. <a href="/scan/demo">Sample report</a>
+    <div className="ora">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+      <OraNav />
+      <main id="main">
+        <div className="ora-hero-stage">
+          <HeroASCII />
+        <section className="ora-hero">
+          <div className="hero-kicker"><ShieldCheck size={16} aria-hidden="true" /> Security, with evidence</div>
+          <h1 className="ora-h1">
+            <span className="reveal-line">
+              <span>Ship fast.</span>
+            </span>
+            <span className="reveal-line hero-accent">
+              <span>Know what&apos;s exposed.</span>
+            </span>
+          </h1>
+          <p className="ora-sub">
+            Security testing for SaaS developers. Scan your app, understand the
+            risks, and verify your fixes.
           </p>
-        </footer>
-      </div>
+          <ScanForm variant="ora" />
+          <hr className="ora-rule" />
+          <div className="ora-stats mono">
+            <span>
+              <span className="n-ink">1</span> website URL
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <span className="n-blue">0</span> integrations needed
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <span className="n-green">100%</span> evidence first
+            </span>
+          </div>
+          <p className="ora-note muted">
+            Exact-host scope · Evidence with every finding
+          </p>
+        </section>
+
+        </div>
+
+        <section id="coverage" className="ora-board-section">
+          <div className="board-head">
+            <h2>What a website scan can assess.</h2>
+            <Link href="/#methodology" className="text-link">
+              Methodology <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          <div className="ora-board">
+            {BOARD.map((column) => (
+              <article key={column.title}>
+                <h3>{column.title}</h3>
+                <ol>
+                  {column.rows.map((row, index) => (
+                    <li key={row.name}>
+                      <span className="mono">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span>{row.name}</span>
+                      <span className={GRADE_CLASS[row.grade]}>
+                        {row.grade}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </article>
+            ))}
+          </div>
+          <p className="small muted">
+            ShipSafe verifies public perimeter resilience via zero-setup URL baseline scans, with deeper profiles for multi-tenant auth, database RLS, payment webhooks, and AI agent boundaries.
+          </p>
+        </section>
+
+        <section id="live" className="ora-section">
+          <h2>Inside a baseline assessment.</h2>
+          <p>
+            This static archived example shows the report format. It is separate
+            from your target and is not a live scan.
+          </p>
+          <div className="transcript-label"><Badge tone="info">Static example</Badge><span className="mono">historical · URL baseline</span></div>
+          <div
+            className="terminal"
+            role="log"
+            aria-label="Recorded scan transcript"
+          >
+            <span className="stream-line">
+              Example only · no live scan is running
+            </span>
+            <span className="stream-line">
+              TLS · redirects · headers · cookies · CORS
+            </span>
+            <span className="stream-line">
+              13 bounded HTTP/TLS checks in the URL baseline
+            </span>
+            <span className="stream-line">
+              Exact hostname only · no exploits or subdomain discovery
+            </span>
+            <span className="stream-line stream-result">
+              Live evidence and score appear here when your scan completes
+            </span>
+          </div>
+          <ButtonLink href="/report/sample" secondary>
+            See a sample report <span aria-hidden="true">→</span>
+          </ButtonLink>
+        </section>
+
+        <section id="methodology" className="ora-section">
+          <h2>A score without coverage is reassurance.</h2>
+          <div className="metric-trio">
+            <div className="metric">
+              <ShieldCheck className="metric-icon" size={22} aria-hidden="true" />
+              <h3>Score</h3>
+              <p>
+                Severity-weighted over assessed controls only. Any open
+                Critical caps the display at 40.
+              </p>
+            </div>
+            <div className="metric">
+              <ScanLine className="metric-icon" size={22} aria-hidden="true" />
+              <h3>Coverage</h3>
+              <p>
+                Assessed applicable controls ÷ applicable controls. Skipped or
+                failed tests never raise it.
+              </p>
+            </div>
+            <div className="metric">
+              <Fingerprint className="metric-icon" size={22} aria-hidden="true" />
+              <h3>Confidence</h3>
+              <p>
+                Quality and repeatability of the evidence behind each finding.
+              </p>
+            </div>
+          </div>
+          <LimitsAccordion
+            items={[
+              {
+                q: "What counts as a pass?",
+                a: "No weakness observed under the defined test — only after the check completes.",
+              },
+              {
+                q: "What happens to skipped or failed tests?",
+                a: "They remain untested and receive no coverage credit. This baseline does not assign an overall security score.",
+              },
+              {
+                q: "Does this baseline test AI features?",
+                a: "No. AI tool permissions, retrieval isolation and agent behavior require a separate authorized fixture and additional access.",
+              },
+              {
+                q: "What authorizes a scan?",
+                a: "Current domain-ownership verification plus explicit scope acceptance. Active testing needs separate approval.",
+              },
+            ]}
+          />
+        </section>
+
+        <section className="ora-section ora-findings" aria-label="Sample findings">
+          <h2>Sample findings.</h2>
+          <p>Evidence and fixes from a recorded baseline.</p>
+          <div className="finding-grid">
+            <article className="finding-card panel">
+              <Badge tone="warning">Medium</Badge>
+              <h3>Content Security Policy is missing</h3>
+              <p className="mono small muted">
+                header content-security-policy · example.com
+              </p>
+              <FindingTabs
+                href="/report/sample/findings/HEADER-CSP-MISSING"
+                evidence="The recorded baseline found no Content-Security-Policy header. Historical summary; original response bytes unavailable."
+                fix="Start with a report-only policy, review required resources, then enforce and retest."
+              />
+            </article>
+            <article className="finding-card panel">
+              <Badge tone="info">Low</Badge>
+              <h3>X-Content-Type-Options header is missing</h3>
+              <p className="mono small muted">
+                header x-content-type-options · example.com
+              </p>
+              <FindingTabs
+                href="/report/sample/findings/HEADER-XCTO-MISSING"
+                evidence="The recorded baseline found no X-Content-Type-Options header. Historical summary; original response bytes unavailable."
+                fix="Send X-Content-Type-Options: nosniff on HTML responses, then retest."
+              />
+            </article>
+            <article className="finding-card panel">
+              <Badge tone="warning">Medium</Badge>
+              <h3>Strict-Transport-Security is missing</h3>
+              <p className="mono small muted">
+                header strict-transport-security · example.com
+              </p>
+              <FindingTabs
+                href="/report/sample/findings/HEADER-HSTS-MISSING"
+                evidence="The recorded baseline found no Strict-Transport-Security header. Historical summary; original response bytes unavailable."
+                fix="Configure HSTS after verifying HTTPS coverage across the affected domains, then retest."
+              />
+            </article>
+          </div>
+        </section>
+
+        <section className="ora-close">
+          <h2>Not ready to ship?</h2>
+          <p>Most teams aren&apos;t. Verify, scan, fix, retest.</p>
+          <div className="hero-actions">
+            <ButtonLink href="/#scan">Scan your app</ButtonLink>
+            <ButtonLink href="/report/sample" secondary>
+              See a sample report
+            </ButtonLink>
+          </div>
+          <p className="small muted">
+            Open your scan terminal. Keep every recorded result in view.
+          </p>
+        </section>
+      </main>
+      <footer className="ora-footer">
+        <div>
+          <Logo />
+          <p>Security checks, with their limits in view.</p>
+        </div>
+        <nav aria-label="Footer">
+          <Link href="/report/sample">Sample report</Link>
+          <Link href="/data">Data &amp; privacy</Link>
+          <Link href="/#scan-tree">Scan tree</Link>
+        </nav>
+        <p className="small muted">
+          © 2026 ShipSafe · Scores are assessments, not certification. ·{" "}
+          <a
+            className="footer-credit"
+            href="https://x.com/bydhruvil"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Built by @bydhruvil on X (opens in a new tab)"
+          >
+            Built by @bydhruvil
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

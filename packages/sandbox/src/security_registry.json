@@ -1,0 +1,1856 @@
+[
+  {
+    "id": "https",
+    "category": "tls",
+    "title": "Validated HTTPS connection",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "https-redirect",
+    "category": "tls",
+    "title": "HTTP upgrades to HTTPS",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "hsts",
+    "category": "headers",
+    "title": "HTTP Strict Transport Security",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "csp",
+    "category": "headers",
+    "title": "Content Security Policy",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "framing",
+    "category": "headers",
+    "title": "Framing restrictions",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "nosniff",
+    "category": "headers",
+    "title": "MIME sniffing restriction",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "referrer",
+    "category": "headers",
+    "title": "Referrer policy",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-secure",
+    "category": "cookies",
+    "title": "Cookie Secure attribute",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-httponly",
+    "category": "cookies",
+    "title": "Cookie HttpOnly attribute",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-samesite",
+    "category": "cookies",
+    "title": "Cookie SameSite attribute",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cors",
+    "category": "cors",
+    "title": "CORS response observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "error-disclosure",
+    "category": "configuration",
+    "title": "Returned-page diagnostic markers",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "http-response",
+    "category": "configuration",
+    "title": "HTTP response received",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "coop",
+    "category": "headers",
+    "title": "Cross-Origin-Opener-Policy",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "coep",
+    "category": "headers",
+    "title": "Cross-Origin-Embedder-Policy",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "corp",
+    "category": "headers",
+    "title": "Cross-Origin-Resource-Policy",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "permissions",
+    "category": "headers",
+    "title": "Permissions Policy presence",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cache",
+    "category": "headers",
+    "title": "Cache policy observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "server-disclosure",
+    "category": "headers",
+    "title": "Server version disclosure",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-samesite-valid",
+    "category": "cookies",
+    "title": "Cookie SameSite value",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-domain",
+    "category": "cookies",
+    "title": "Cookie domain scope",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-path",
+    "category": "cookies",
+    "title": "Cookie path scope",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-lifetime",
+    "category": "cookies",
+    "title": "Cookie lifetime observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "cookie-prefix",
+    "category": "cookies",
+    "title": "Cookie prefix requirements",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "mixed-content",
+    "category": "frontend",
+    "title": "Returned HTML insecure resource references",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "script-inventory",
+    "category": "frontend",
+    "title": "Returned HTML script inventory",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "tls-expiry",
+    "category": "tls",
+    "title": "Validated certificate expiry",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dns-public",
+    "category": "dns",
+    "title": "Public DNS address validation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "DNS"
+    ],
+    "paths": [
+      "exact submitted hostname DNS records",
+      "no parent or sibling lookup"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "security-txt",
+    "category": "metadata",
+    "title": "Published security contact metadata",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "/.well-known/security.txt"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "robots-txt",
+    "category": "metadata",
+    "title": "Published robots metadata",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "/robots.txt"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "sitemap-xml",
+    "category": "metadata",
+    "title": "Published sitemap metadata",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "/sitemap.xml"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "library-inventory",
+    "category": "frontend",
+    "title": "Returned HTML library version markers",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "source-map",
+    "category": "frontend",
+    "title": "Explicit returned-page source map reference",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "explicit same-host sourceMappingURL .map path in returned HTML; no query or fragment"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dns-caa",
+    "category": "dns",
+    "title": "DNS CAA record observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "DNS"
+    ],
+    "paths": [
+      "exact submitted hostname DNS records",
+      "no parent or sibling lookup"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dns-spf",
+    "category": "dns",
+    "title": "DNS SPF record observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "DNS"
+    ],
+    "paths": [
+      "exact submitted hostname DNS records",
+      "no parent or sibling lookup"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dns-dmarc",
+    "category": "dns",
+    "title": "DNS DMARC record observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "DNS"
+    ],
+    "paths": [
+      "exact submitted hostname DNS records",
+      "_dmarc TXT only"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dns-mx",
+    "category": "dns",
+    "title": "DNS MX record observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "standard low-impact URL submission",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "DNS"
+    ],
+    "paths": [
+      "exact submitted hostname DNS records",
+      "no parent or sibling lookup"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "deep-git-head",
+    "category": "configuration",
+    "title": "Exposed Git HEAD signature",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "/.git/HEAD"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "deep-discovery",
+    "category": "discovery",
+    "title": "Bounded same-host linked-page observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "up to 3 same-host HTML links without query or fragment"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": false
+  },
+  {
+    "id": "deep-cors",
+    "category": "cors",
+    "title": "Uncredentialed Origin response observation",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET"
+    ],
+    "paths": [
+      "submitted path",
+      "validated same-host redirects"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "deep-nuclei",
+    "category": "vulnerability",
+    "title": "Nuclei reviewed-template assessment",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "paths": [
+      "vetted passive template paths"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "deep-zap",
+    "category": "vulnerability",
+    "title": "OWASP ZAP baseline passive assessment",
+    "version": "1.0.0",
+    "implemented": true,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "paths": [
+      "vetted passive template paths"
+    ],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "bounded response metadata or redacted boolean/count observations",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "high",
+    "scoreEligible": true
+  },
+  {
+    "id": "dnssec",
+    "category": "dns",
+    "title": "DNSSEC chain validation",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "certificate-transparency",
+    "category": "tls",
+    "title": "Certificate transparency history",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "ocsp",
+    "category": "tls",
+    "title": "OCSP revocation status",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "weak-tls",
+    "category": "tls",
+    "title": "Legacy TLS protocol negotiation",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "tls-ciphers",
+    "category": "tls",
+    "title": "TLS cipher enumeration",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "cve",
+    "category": "frontend",
+    "title": "Maintained CVE feed correlation",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "client-config",
+    "category": "frontend",
+    "title": "Context-aware client configuration review",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "injection",
+    "category": "injection",
+    "title": "Injection testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "api",
+    "category": "api",
+    "title": "API authorization and schema testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "authentication",
+    "category": "authentication",
+    "title": "Authentication and session testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "jwt",
+    "category": "authentication",
+    "title": "JWT validation testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "csrf",
+    "category": "csrf",
+    "title": "CSRF validation testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  },
+  {
+    "id": "graphql",
+    "category": "api",
+    "title": "GraphQL security testing",
+    "version": "1.0.0",
+    "implemented": false,
+    "authorization": "verified exact-host grant",
+    "scope": "exact submitted hostname only",
+    "methods": [],
+    "paths": [],
+    "budgets": {
+      "sharedRequests": 20,
+      "sharedSeconds": 40,
+      "bodyBytesPerResponse": 65536,
+      "dnsQueries": 4,
+      "concurrentDnsQueries": 2
+    },
+    "evidence": "none; no reviewed execution context",
+    "evidenceSchema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "redaction": "No cookie values, bodies, secrets, resource URLs or redirect destinations"
+    },
+    "severityRules": "INFO hardening observations only; no exploit severity inferred",
+    "confidenceRules": "High only for a completed bounded observation; none for unavailable or inapplicable checks",
+    "severity": "info",
+    "confidence": "none",
+    "scoreEligible": true
+  }
+]

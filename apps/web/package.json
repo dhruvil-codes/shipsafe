@@ -14,9 +14,17 @@
     "@shipsafe/sandbox": "workspace:*",
     "@shipsafe/scoring": "workspace:*",
     "@shipsafe/shared": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.57.0",
+    "motion": "^14.3.0",
     "next": "^15.0.0",
+    "postcss": "^8.5.30",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
