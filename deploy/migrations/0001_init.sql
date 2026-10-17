@@ -99,5 +99,3 @@ CREATE TABLE IF NOT EXISTS queue_metrics (
   rolling_avg_duration REAL NOT NULL DEFAULT 15.0,
   updated_at INTEGER NOT NULL
 );
-EOF
-path: deploy/migrations/0001_init.sql
