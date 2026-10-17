@@ -369,32 +369,6 @@ export default function InlineScan() {
           </section>
         </div>
 
-        <p className="small muted">Assessment limits: {isLab ? "recorded baseline against an owned synthetic fixture only." : "bounded HTTP response-hardening, TLS/SSL configuration, redirect hygiene, cookies, and CORS boundaries."} Only recorded checks count. Scores are security assessments, not compliance certifications.</p>
-
-        {hasManifest && (() => {
-          const obs = checks.filter(c => c.status === "observation" || c.status === "failed" || c.status === "warning");
-          const passed = checks.filter(c => c.status === "passed");
-          const deferred = checks.filter(c => c.status !== "passed" && c.status !== "observation" && c.status !== "failed" && c.status !== "warning");
-          const renderGroup = (title: string, items: typeof checks) => (
-            <details className="scan-accordion" style={{ marginBottom: 8 }}>
-              <summary>{title} ({items.length})</summary>
-              <ul style={{ listStyle: "none", padding: 0, margin: "8px 0" }}>
-                {(showAllChecks ? items : items.slice(0, 5)).map(c => (
-                  <li key={c.id} className="small" style={{ padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
-                    <strong>{c.id}</strong> — {c.title} <span className="muted">({c.status})</span>
-                  </li>
-                ))}
-              </ul>
-              {items.length > 5 && <button className="text-button" type="button" onClick={() => setShowAllChecks(v => !v)}>{showAllChecks ? "Show less" : `Show all ${items.length} ${title.toLowerCase()}`}</button>}
-            </details>
-          );
-          return <section className="panel stack" aria-label="Check catalog">
-            {renderGroup("Action Required / Observations", obs)}
-            {renderGroup("Passed Controls", passed)}
-            {renderGroup("Deferred / Inapplicable Capabilities", deferred)}
-          </section>;
-        })()}
-        {modernProfile && <UnifiedResults results={unifiedResults} />}
         <section className="panel stack report-findings" aria-label="Findings">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
             <h2 className="section-title">Findings <span className="muted">{report.findings.length}</span></h2>
@@ -411,26 +385,29 @@ export default function InlineScan() {
               const s = f.severity.toLowerCase();
               const tone = s === "critical" || s === "high" ? "danger" : s === "medium" ? "warning" : s === "low" ? "info" : "neutral";
               const classification = (f as typeof f & { classification?: string }).classification;
+              const promptText = `Fix security finding: [${f.severity}] ${f.title} (${f.checkId || f.id})\nTarget host: ${report.scan.url}\nObserved evidence: ${f.evidence}\nRecommended fix: ${f.remediation}\nPlease update our web server / framework configuration (Next.js, Vercel headers, or Nginx) to address this hardening issue. Provide the exact code/config diff.`;
               return <div key={f.id} className="inline-finding-card">
-                <div className="finding-row"><button className="finding-toggle" type="button" onClick={() => setExpandedFinding(isExpanded ? null : f.id)} aria-expanded={isExpanded} aria-controls={`finding-${f.id}`}>
-                  <div>
-                    <div className="finding-meta">
-                      <Badge tone={tone}>{f.severity}</Badge>
-                      {classification && <Badge tone="neutral">{classification === "hardening" ? "Hardening" : classification}</Badge>}
-                      <span className="finding-id muted small">{f.cwe ? `${f.cwe} · ` : ""}{f.checkId || f.id}</span>
+                <div className="finding-row">
+                  <button className="finding-toggle" type="button" onClick={() => setExpandedFinding(isExpanded ? null : f.id)} aria-expanded={isExpanded} aria-controls={`finding-${f.id}`}>
+                    <div>
+                      <div className="finding-meta">
+                        <Badge tone={tone}>{f.severity}</Badge>
+                        {classification && <Badge tone="neutral">{classification === "hardening" ? "Hardening" : classification}</Badge>}
+                        <span className="finding-id muted small">{f.cwe ? `${f.cwe} · ` : ""}{f.checkId || f.id}</span>
+                      </div>
+                      <h3 style={{ margin: "8px 0 4px", fontSize: 18 }}>{f.title}</h3>
+                      <span className="muted small">{isExpanded ? "Hide details" : "View evidence, remediation & fix prompt"}</span>
                     </div>
-                    <h3 style={{ margin: "8px 0 4px", fontSize: 18 }}>{f.title}</h3>
-                    <span className="muted small">{isExpanded ? "Hide details" : "View evidence, remediation & fix prompt"}</span>
-                  </div>
-                  <span aria-hidden="true" className="finding-chevron">{isExpanded ? "-" : "+"}</span>
-                  <button className="button secondary" type="button" onClick={() => {
-                    const prompt = `Fix security finding: [${f.severity}] ${f.title} (${f.checkId || f.id})\nTarget host: ${report.scan.url}\nObserved evidence: ${f.evidence}\nRecommended fix: ${f.remediation}\nPlease update our web server / framework configuration (Next.js, Vercel headers, or Nginx) to address this hardening issue. Provide the exact code/config diff.`;
-                    void navigator.clipboard?.writeText(prompt);
-                    setCopiedPromptId(f.id);
-                    setTimeout(() => setCopiedPromptId(null), 1500);
-                  }}>{copiedPromptId === f.id ? "Copied!" : "Copy AI Fix Prompt"}</button>
+                    <span aria-hidden="true" className="finding-chevron">{isExpanded ? "−" : "+"}</span>
                   </button>
-                  <a href={`/report/${encodeURIComponent(report.scan.id)}/findings/${encodeURIComponent(f.id)}`} target="_blank" rel="noreferrer" className="icon-button finding-permalink" aria-label={`Open ${f.title} in a new tab`}>↗</a>
+                  <div className="finding-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+                    <button className="button secondary" type="button" style={{ fontSize: 13, padding: "6px 12px" }} onClick={() => {
+                      void navigator.clipboard?.writeText(promptText);
+                      setCopiedPromptId(f.id);
+                      setTimeout(() => setCopiedPromptId(null), 1500);
+                    }}>{copiedPromptId === f.id ? "Copied!" : "Copy AI Fix Prompt"}</button>
+                    <a href={`/report/${encodeURIComponent(report.scan.id)}/findings/${encodeURIComponent(f.id)}`} target="_blank" rel="noreferrer" className="icon-button finding-permalink" aria-label={`Open ${f.title} in a new tab`}>↗</a>
+                  </div>
                 </div>
                 {isExpanded && <div id={`finding-${f.id}`} className="finding-expanded-body">
                   <h4 style={{ margin: "12px 0 6px" }}>What was observed</h4>
@@ -449,49 +426,35 @@ export default function InlineScan() {
                 </div>}
               </div>;
             })}
-          </div> : <p className="muted" style={{ padding: "16px 0" }}>No findings match the selected severity filter.</p>}
+          </div> : <p className="muted" role="status">No findings match the selected severity filter.</p>}
         </section>
 
-        <section className="panel stack report-checks" aria-label="Executed baseline checks">
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-            <h2 className="section-title">Executed baseline checks <span className="muted">{checks.length}</span></h2>
-            <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <label className="small report-filter">Status{" "}
-                <select value={checkFilter} onChange={e => setCheckFilter(e.target.value)} style={{ padding: "8px 12px", marginLeft: 8, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)" }}>
-                  <option value="all">All ({checks.length})</option>
-                  <option value="passed">Passed ({checks.filter(c => c.status === "passed").length})</option>
-                  <option value="observation">Observations ({checks.filter(c => c.status === "observation").length})</option>
-                  <option value="skipped">Skipped ({checks.filter(c => c.status === "skipped").length})</option>
-                  {checks.some(c => c.status === "failed") && <option value="failed">Failed ({checks.filter(c => c.status === "failed").length})</option>}
-                </select>
-              </label>
-              <span className="small muted mono">
-                {String(reportManifest?.engine ?? "shipsafe-http-baseline")} · v{String(reportManifest?.version ?? "1.0.0")}
-              </span>
-            </div>
-          </div>
-          {filteredChecks.length ? <div className="checks-list">
-            {filteredChecks.map(check => {
-              const tone = check.status === "passed" ? "success" : check.status === "observation" ? "warning" : check.status === "failed" ? "danger" : "neutral";
-              return <div key={check.id} className="row report-finding-row" style={{ padding: "16px 12px", borderTop: "1px solid var(--border)", gap: 16, justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-                  <div className="row" style={{ gap: 8, alignItems: "center", marginBottom: 6 }}>
-                    <Badge tone={tone}>{check.status.toUpperCase()}</Badge>
-                    <span className="mono small muted">{check.id}</span>
-                  </div>
-                  <h3 style={{ margin: "4px 0 6px", fontSize: 16, fontWeight: 500 }}>{check.title}</h3>
-                  {check.remediation && check.status !== "passed" && <p className="small muted" style={{ margin: "4px 0 0" }}>Fix: {check.remediation}</p>}
-                </div>
-                <div style={{ flex: "1 1 340px", minWidth: 0 }}>
-                  <span className="small muted" style={{ display: "block", marginBottom: 4 }}>Evidence</span>
-                  <pre className="check-evidence">
-                    {check.evidence || "No evidence recorded"}
-                  </pre>
-                </div>
-              </div>;
-            })}
-          </div> : <p className="muted" style={{ padding: "16px 0" }}>No checks match the selected filter.</p>}
-        </section>
+        {hasManifest && (() => {
+          const obs = checks.filter(c => c.status === "observation" || c.status === "failed" || c.status === "warning");
+          const passed = checks.filter(c => c.status === "passed");
+          const deferred = checks.filter(c => c.status !== "passed" && c.status !== "observation" && c.status !== "failed" && c.status !== "warning");
+          const renderGroup = (title: string, items: typeof checks, groupKey: string) => (
+            <details className="scan-accordion" style={{ marginBottom: 8 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600, padding: "8px 0" }}>{title} ({items.length})</summary>
+              <ul style={{ listStyle: "none", padding: 0, margin: "8px 0" }}>
+                {(showAllChecks ? items : items.slice(0, 5)).map(c => (
+                  <li key={c.id} className="small" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span><strong>{c.id}</strong> — {c.title}</span>
+                    <Badge tone={c.status === "passed" ? "success" : c.status === "observation" ? "warning" : "neutral"}>{c.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+              {items.length > 5 && <button className="text-button" type="button" onClick={() => setShowAllChecks(v => !v)}>{showAllChecks ? "Show less" : `Show all ${items.length} ${title.toLowerCase()}`}</button>}
+            </details>
+          );
+          return <section className="panel stack" aria-label="Check catalog">
+            <h2 className="section-title" style={{ fontSize: 18, marginBottom: 4 }}>Security Check Catalog</h2>
+            {renderGroup("Action Required / Observations", obs, "obs")}
+            {renderGroup("Passed Controls", passed, "passed")}
+            {renderGroup("Deferred / Inapplicable Capabilities", deferred, "deferred")}
+          </section>;
+        })()}
+        <p className="small muted" style={{ marginTop: 12 }}>Assessment limits: {isLab ? "recorded baseline against an owned synthetic fixture only." : "bounded HTTP response-hardening, TLS/SSL configuration, redirect hygiene, cookies, and CORS boundaries."} Only recorded checks count. Scores are security assessments, not compliance certifications.</p>
 
         {target && isTerminal(report.scan.status) && (
           <div className="panel stack deep-scan-cta" style={{ marginTop: 24, padding: "20px", background: "var(--color-surface-subtle, rgba(255,255,255,0.02))", borderRadius: "12px", border: "1px solid var(--color-border, rgba(255,255,255,0.08))" }}>
