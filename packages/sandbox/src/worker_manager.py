@@ -307,12 +307,12 @@ class ScanTask:
             engine_script = os.path.join(self.dir, "baseline.py")
 
         if self.mode == "deep":
-            # Deep Scan: 1024 MB RAM, 120s CPU, 64 processes, 150s timeout
+            # Deep Scan: 1024 MB RAM, 120s CPU, 128 processes, 150s timeout
             cmd = [
                 "prlimit",
                 "--as=1073741824",
                 "--cpu=120",
-                "--nproc=64",
+                "--nproc=128",
                 "--fsize=5242880",
                 "--nofile=128",
                 "--",
@@ -324,14 +324,14 @@ class ScanTask:
             ]
             timeout_sec = 160
         else:
-            # Standard Scan: 256 MB RAM, 45s CPU, 32 processes, 50s timeout
+            # Standard Scan: 512 MB RAM, 45s CPU, 128 processes, 50s timeout
             cmd = [
                 "prlimit",
-                "--as=268435456",
+                "--as=536870912",
                 "--cpu=45",
-                "--nproc=32",
+                "--nproc=128",
                 "--fsize=1048576",
-                "--nofile=64",
+                "--nofile=128",
                 "--",
                 "timeout",
                 "50s",

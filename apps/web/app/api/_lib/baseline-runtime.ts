@@ -88,7 +88,7 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
     const args = scan.mode === "lab"
       ? ["timeout", "80s", "docker", "run", "--rm", "--name", container, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "128", "--memory", "512m", "--cpus", "1", "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m", "--env", "HOME=/tmp", "--entrypoint", "python3", "-i", LAB_IMAGE, "-u", "-c", `import base64;exec(base64.b64decode("${Buffer.from(fs.readFileSync(sourcePath(), "utf8")).toString("base64")}"))`]
       : securityMode
-        ? ["prlimit", "--as=268435456", "--cpu=45", "--nproc=32", "--fsize=1048576", "--nofile=64", "--", "timeout", "50s", "python3", "-u", `${directory}/security_engine.py`]
+        ? ["prlimit", "--as=268435456", "--cpu=45", "--nproc=128", "--fsize=1048576", "--nofile=64", "--", "timeout", "50s", "python3", "-u", `${directory}/security_engine.py`]
         : ["timeout", "70s", "python3", "-u", `${directory}/baseline.py`];
     // No shell evaluates user data. The guest receives no control-plane credentials.
     await exec(vm, python(`import subprocess,json,os\nd=${JSON.stringify(directory)}\np=subprocess.Popen(['flock','-w','75','/tmp/shipsafe-baseline-worker.lock']+${JSON.stringify(args)},stdin=open(d+'/input.json','rb'),stdout=open(d+'/events.jsonl','wb'),stderr=open(d+'/stderr.log','wb'),env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':'/tmp','LANG':'C.UTF-8'},start_new_session=True)\nopen(d+'/pid','w').write(str(p.pid))`));
@@ -215,6 +215,7 @@ export function kickQueue(): void {
           ? `${stopReason.success ? failureCopy[stopReason.data] : "The submitted hostname returned a redirect that ShipSafe did not follow."} A partial report of that hostname's redirect response was saved. The redirect destination was not contacted; no baseline score was assigned.`
           : "Report generated and saved. Coverage applies only to the baseline profile; deeper application controls were not tested.");
       } catch (error) {
+        console.error("Queue execution error:", error);
         if (!controller.signal.aborted) apiStore.updateScan(scan.id, { status: "FAILED" });
         if (error instanceof CleanupError) {
           apiStore.updateScan(scan.id, { reportManifest: { cleanupState: "unverified" } });

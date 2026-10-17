@@ -1,6 +1,43 @@
+import fs from "node:fs";
+import path from "node:path";
 import { apiStore } from "./store";
 
+function ensureLocalEnvLoaded() {
+  if (process.env.INSTABOX_API_KEY && process.env.INSTABOX_SANDBOX_ID) return;
+  const roots = [
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
+    path.resolve(process.cwd(), "../.."),
+  ];
+  for (const root of roots) {
+    for (const filename of [".env.local", ".env"]) {
+      const file = path.join(root, filename);
+      if (fs.existsSync(file)) {
+        try {
+          const content = fs.readFileSync(file, "utf8");
+          for (const line of content.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) continue;
+            const eq = trimmed.indexOf("=");
+            if (eq > 0) {
+              const key = trimmed.slice(0, eq).trim();
+              let val = trimmed.slice(eq + 1).trim();
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+              if (!process.env[key]) process.env[key] = val;
+            }
+          }
+        } catch {}
+      }
+    }
+  }
+}
+
+ensureLocalEnvLoaded();
+
 export function executionReadiness() {
+  ensureLocalEnvLoaded();
   const isCloudPlatform = Boolean(process.env.VERCEL || process.env.CF_PAGES);
   const hasInstaBoxCreds = Boolean(
     process.env.INSTABOX_API_KEY &&
@@ -9,7 +46,7 @@ export function executionReadiness() {
   );
   const isExplicitLocal = process.env.SHIPSAFE_RUNTIME === "local";
   const isLocalDev = !isCloudPlatform && (isExplicitLocal || process.env.NODE_ENV !== "production" || hasInstaBoxCreds);
-  const configured = isLocalDev && (hasInstaBoxCreds || isExplicitLocal) && !apiStore.hasCleanupFailure();
+  const configured = isLocalDev && (hasInstaBoxCreds || isExplicitLocal) && apiStore.isPersistent() && !apiStore.hasCleanupFailure();
   return {
     executionConfigured: configured,
     labEnabled: configured,
