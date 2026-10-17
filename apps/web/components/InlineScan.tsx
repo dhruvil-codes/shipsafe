@@ -13,23 +13,6 @@ import { parseStreamPayload } from "@/lib/scan-flow";
 
 const message = (error: unknown) => error instanceof Error ? error.message : "The request failed. Try again.";
 
-function SeverityBadge({ severity }: { severity: string }) {
-  const s = severity.toLowerCase();
-  const map: Record<string, { bg: string; text: string; border: string; dot: string; pulse?: boolean }> = {
-    critical: { bg: "bg-rose-500/10 dark:bg-rose-500/15", text: "text-rose-700 dark:text-rose-400", border: "border-rose-500/30", dot: "bg-rose-500", pulse: true },
-    high: { bg: "bg-orange-500/10 dark:bg-orange-500/15", text: "text-orange-700 dark:text-orange-400", border: "border-orange-500/30", dot: "bg-orange-500" },
-    medium: { bg: "bg-amber-500/10 dark:bg-amber-500/15", text: "text-amber-700 dark:text-amber-400", border: "border-amber-500/30", dot: "bg-amber-500" },
-    low: { bg: "bg-sky-500/10 dark:bg-sky-500/15", text: "text-sky-700 dark:text-sky-400", border: "border-sky-500/30", dot: "bg-sky-500" },
-    info: { bg: "bg-sky-500/10 dark:bg-sky-500/15", text: "text-sky-700 dark:text-sky-400", border: "border-sky-500/30", dot: "bg-sky-500" },
-    observation: { bg: "bg-sky-500/10 dark:bg-sky-500/15", text: "text-sky-700 dark:text-sky-400", border: "border-sky-500/30", dot: "bg-sky-500" },
-    passed: { bg: "bg-emerald-500/10 dark:bg-emerald-500/15", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-500/30", dot: "bg-emerald-500" },
-  };
-  const cfg = map[s] || map.info;
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-mono font-medium tracking-wide border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${cfg.pulse ? "animate-pulse" : ""}`} />
-    {severity}
-  </span>;
-}
 const Terminal = dynamic(() => import("@/components/magicui/terminal").then(module => module.Terminal), {
   ssr: false,
   loading: () => <p className="scan-terminal-loading" role="status">Loading terminal…</p>,
@@ -68,9 +51,7 @@ export default function InlineScan() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
   const [checkFilter, setCheckFilter] = useState<string>("all");
-  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [showAllChecks, setShowAllChecks] = useState(false);
-  const [stagingIndex, setStagingIndex] = useState(0);
 
   const [lines, setLines] = useState<string[]>([]);
   const [liveEvents, setLiveEvents] = useState<{ id: string; stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }[]>([]);
@@ -273,14 +254,6 @@ export default function InlineScan() {
     finally { setBusy(""); }
   }
 
-  const STAGING_STEPS = [
-    "[0.0s] [DISPATCH] Validating host authorization & target normalization...",
-    "[0.8s] [PROVISIONING] Allocating ephemeral microVM sandbox in secure isolation...",
-    "[2.1s] [NETWORK] Pinning target DNS, TLS cipher probes, and egress boundaries...",
-    "[3.4s] [ENGINE] Initializing 55 deterministic baseline security checkers...",
-    "[4.8s] [READY] Scan engine online. Executing active baseline evaluation...",
-  ];
-
   const hostname = target ? new URL(target.url).hostname : "";
   const reportManifest = report?.scan.reportManifest;
   const isLab = report?.scan.mode === "lab" || reportManifest?.synthetic === true || (target ? target.url.includes("fixture.invalid") : false);
@@ -297,18 +270,6 @@ export default function InlineScan() {
   const liveEventIds = new Set(liveEvents.map(event => event.id).filter(Boolean));
   const displayedEvents = [...presentScanEvents(report?.events ?? []).filter(event => !liveEventIds.has(event.id)), ...liveEvents];
   const checksEvaluated = displayedEvents.filter(event => event.stage === "check_done").length;
-  useEffect(() => {
-    if (!active) { setStagingIndex(0); return; }
-    if (checksEvaluated > 0) return;
-    const timer = setInterval(() => {
-      setStagingIndex(prev => (prev < STAGING_STEPS.length - 1 ? prev + 1 : prev));
-    }, 1100);
-    return () => clearInterval(timer);
-  }, [active, checksEvaluated]);
-  const isStaging = active && checksEvaluated === 0;
-  const visibleEvents = isStaging
-    ? displayedEvents.filter(e => !["QUEUED", "PROVISIONING", "RUNNING"].includes(e.stage))
-    : displayedEvents;
   const score = report ? assessmentScore(report) : null;
   const modernProfile = report?.scan.mode === "standard" || report?.scan.mode === "deep";
   const baselineScore = !modernProfile && reportManifest?.profile === "bounded-http-hardening" ? scoreUrlBaseline(checks) : null;
@@ -319,7 +280,7 @@ export default function InlineScan() {
   const filteredFindings = report ? filterFindings(report.findings, severityFilter) : [];
   const filteredChecks = checkFilter === "all" ? checks : checks.filter(c => c.status === checkFilter);
 
-  return <div id="scan" className="inline-scan bg-grid-page min-h-screen w-full relative">
+  return <div id="scan" className="inline-scan">
     <form className="ora-scan" onSubmit={submit} noValidate>
       <label className="sr-only" htmlFor="scan-url">Website URL</label>
       <input ref={input} id="scan-url" type="text" inputMode="url" autoComplete="url" spellCheck={false} placeholder="Enter your website URL" value={value} onChange={event => { setValue(event.target.value); setInputError(""); }} disabled={Boolean(busy) || active} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "scan-url-error" : "scan-hint"} />
@@ -341,8 +302,7 @@ export default function InlineScan() {
           <div className="output-heading"><h3><TerminalSquare size={18} aria-hidden="true" /> Scan terminal</h3><span className="small" role="status">{connection}</span></div>
           <div ref={output} className="scan-output-scroll" onScroll={event => { const el = event.currentTarget; setFollowOutput(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }} role="log" aria-label="Scan output" aria-live="polite" aria-relevant="additions text" tabIndex={0}>
             <Terminal className="scan-magic-terminal" sequence={false} startOnView={false} windowControls={false}>
-              {isStaging && STAGING_STEPS.slice(0, stagingIndex + 1).map((step, index) => <span className="scan-terminal-line" key={`stage-${index}`}>{step}</span>)}
-              {visibleEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
+              {displayedEvents.map((event, index) => <span className={`scan-terminal-line${event.stage === "check_done" ? ` scan-check-${event.status ?? "skipped"}` : event.stage === "check" ? " scan-check-start" : ""}`} key={event.id || `event-${index}`} data-check-id={event.checkId} data-timestamp={event.timestamp}>{event.stage === "check" ? "[check]" : event.stage === "check_done" ? "[check_done]" : `[${event.stage}]`} {event.message}</span>)}
               {lines.map((line, index) => <span className="scan-terminal-line" key={index}>{line}</span>)}
               {error && !lines.length && !displayedEvents.length && <span className="scan-terminal-line scan-terminal-error">[ERROR] {error}</span>}
               {!lines.length && !displayedEvents.length && !error && <span className="scan-terminal-line">{scanId ? "Waiting for recorded scan output." : "No scan has started."}</span>}
@@ -355,9 +315,8 @@ export default function InlineScan() {
       </div>
       {error && <p className="notice error-notice" role="alert">{error}</p>}
       {active && <div className="scan-live-progress" role="status" aria-live="polite">
-        <span className="animate-pulse-beacon micro-spinner" aria-hidden="true" />
-        <span>Analyzing security controls ({checksEvaluated}/55 checks evaluated)…</span>
-        <div className="scan-progress-bar"><div className="scan-progress-fill" style={{ width: `${Math.min(100, (checksEvaluated / 55) * 100)}%` }} /></div>
+        <span className="scan-progress-spinner" aria-hidden="true" />
+        <span>{checksEvaluated ? `${checksEvaluated} checks completed. Scan in progress…` : "Waiting for recorded check results…"}</span>
       </div>}
       {report && isTerminal(report.scan.status) && <section className="inline-results stack" aria-label="Recorded results">
         <div className="report-heading">
@@ -426,14 +385,13 @@ export default function InlineScan() {
               const s = f.severity.toLowerCase();
               const tone = s === "critical" || s === "high" ? "danger" : s === "medium" ? "warning" : s === "low" ? "info" : "neutral";
               const classification = (f as typeof f & { classification?: string }).classification;
-              const promptText = `Fix security finding: [${f.severity}] ${f.title} (${f.checkId || f.id})\nTarget host: ${report.scan.url}\nObserved evidence: ${f.evidence}\nRecommended fix: ${f.remediation}\nPlease update our web server / framework configuration (Next.js, Vercel headers, or Nginx) to address this hardening issue. Provide the exact code/config diff.`;
-              return <div key={f.id} className="rounded-xl border border-neutral-200/80 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-sm shadow-sm transition hover:border-neutral-300 dark:hover:border-neutral-700 mb-3 p-4">
+              return <div key={f.id} className="inline-finding-card">
                 <div className="finding-row">
                   <button className="finding-toggle" type="button" onClick={() => setExpandedFinding(isExpanded ? null : f.id)} aria-expanded={isExpanded} aria-controls={`finding-${f.id}`}>
                     <div>
                       <div className="finding-meta">
-                        <SeverityBadge severity={f.severity} />
-                        {classification && <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-mono font-medium tracking-wide border border-neutral-200/80 bg-neutral-100/50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">{classification === "hardening" ? "Hardening" : classification}</span>}
+                        <Badge tone={tone}>{f.severity}</Badge>
+                        {classification && <Badge tone="neutral">{classification === "hardening" ? "Hardening" : classification}</Badge>}
                         <span className="finding-id muted small">{f.cwe ? `${f.cwe} · ` : ""}{f.checkId || f.id}</span>
                       </div>
                       <h3 style={{ margin: "8px 0 4px", fontSize: 18 }}>{f.title}</h3>
@@ -441,12 +399,8 @@ export default function InlineScan() {
                     </div>
                     <span aria-hidden="true" className="finding-chevron">{isExpanded ? "−" : "+"}</span>
                   </button>
-                  <div className="finding-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-                    <button className="button secondary" type="button" style={{ fontSize: 13, padding: "6px 12px" }} onClick={() => {
-                      void navigator.clipboard?.writeText(promptText);
-                      setCopiedPromptId(f.id);
-                      setTimeout(() => setCopiedPromptId(null), 1500);
-                    }}>{copiedPromptId === f.id ? "Copied!" : "Copy AI Fix Prompt"}</button>
+                  <div className="finding-actions">
+                    <CopyButton text={fixPrompt(report, f)} label="Copy fix prompt" />
                     <a href={`/report/${encodeURIComponent(report.scan.id)}/findings/${encodeURIComponent(f.id)}`} target="_blank" rel="noreferrer" className="icon-button finding-permalink" aria-label={`Open ${f.title} in a new tab`}>↗</a>
                   </div>
                 </div>
@@ -504,7 +458,7 @@ export default function InlineScan() {
                 <span className="eyebrow" style={{ color: "var(--color-accent, #6366f1)" }}>Authorized Verification</span>
                 <h3 style={{ margin: "4px 0 6px", fontSize: "1.15rem" }}>{report.scan.mode === "deep" ? "Deep Scan authorization" : "Perform Deep Security Scan"}</h3>
                 <p className="small muted" style={{ margin: 0, maxWidth: 520 }}>
-                  {report.scan.mode === "deep" ? "Review the DNS proof and action classes before another authorized Deep Scan." : "Run verified Git repository checks, bounded link discovery, and CORS origin analysis. Requires DNS ownership verification and explicit action consent."}
+                  {report.scan.mode === "deep" ? "Review the DNS proof and action classes before another authorized Deep Scan." : "Run bounded configuration checks, link discovery, and CORS origin analysis. Requires DNS ownership verification and explicit action consent."}
                 </p>
               </div>
               <button

@@ -396,3 +396,11 @@
 - Updated terminal staging in `InlineScan.tsx`: staging steps advance chronologically one-by-one without looping, suppressing redundant initial backend events during the staging sequence.
 - Verified live end-to-end scan of external website `https://magicui.design/`: completed with score 52/100, 100% coverage, 11 findings, and 0 errors. All 152 Vitest tests and 55 Python tests pass.
 
+
+
+## UI spacing, findings and navigation repairs [2026-10-17]
+- Removed the inline scanner viewport-height floor that left an empty screen below the scan tree. Its following divider now sits 32px below the tree.
+- Replaced utility-dependent finding cards with explicit scoped CSS. Cards have consistent padding and badge spacing, wrap long titles, and move copy/report controls below the finding on narrow screens. The copy action uses the shared evidence-aware fix prompt and reports clipboard failures correctly.
+- Kept the header opaque above the ASCII background, moved the mobile navigation breakpoint to 800px, and added Escape, outside-click, focus-exit and viewport-change dismissal. Reduced ASCII glow and depth blur, bounded its height and restored explicit reduced-motion pause behavior.
+- Removed simulated terminal staging and the fixed 55-check progress denominator. Progress now counts recorded check completion events.
+- Validation: web Vitest suite passed 152 tests, workspace typechecks passed and production build passed. Browser checks at 320, 390, 640, 768, 800 and 1440px found no horizontal overflow or finding-action overlap. Verified severity filtering, finding disclosure, navigation Escape dismissal and reduced-motion state against a saved synthetic report. Screenshots and measurements are in the isolated worktree under .artifacts/ui-polish/. No scan was started.

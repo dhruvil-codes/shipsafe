@@ -24,17 +24,18 @@ export default function HeroASCII() {
         colors={["#fcfcfc", "#a5c8ff", "#317cff", "#005fcc"]}
         shape="horizon"
         lightMode
-        cellSize={14}
-        density={0.72}
+        cellSize={12}
+        density={0.6}
         glyphOpacity={0.85}
         gradientOpacity={0.18}
-        glow={0.12}
-        depthOfField={0.2}
-        flicker={0.08}
-        grain={0.015}
+        glow={0}
+        depthOfField={0}
+        flicker={0.025}
+        grain={0}
         speed={0.4}
         flow={0.5}
-        mouseInteraction
+        paused={reducedMotion}
+        mouseInteraction={!reducedMotion}
         scrambleRadius={0.12}
         clickEffect="none"
         intro={false}

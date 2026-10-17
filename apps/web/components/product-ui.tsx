@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ArrowUpRight, Check, Copy, Menu, X } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export function Logo() {
   return <Link href="/#scan" className="brand" aria-label="ShipSafe home"><ArrowUpRight size={23} strokeWidth={1.8} aria-hidden="true" /><span>ShipSafe</span></Link>;
@@ -12,8 +12,24 @@ export function ButtonLink({ href, children, secondary = false }: { href: string
 export function OraNav() {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const header = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 801px)");
+    const close = () => setOpen(false);
+    const outside = (event: PointerEvent) => {
+      if (!header.current?.contains(event.target as Node)) close();
+    };
+    media.addEventListener("change", close);
+    document.addEventListener("pointerdown", outside);
+    return () => {
+      media.removeEventListener("change", close);
+      document.removeEventListener("pointerdown", outside);
+    };
+  }, []);
   const links = <><Link href="/#scan-tree" onClick={() => setOpen(false)}>Scan tree</Link><Link href="/#scan" onClick={() => setOpen(false)}>Scan your app</Link></>;
-  return <header className="ora-nav" onKeyDown={event => {
+  return <header ref={header} className="ora-nav" onBlur={event => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+  }} onKeyDown={event => {
     if (event.key === "Escape" && open) { setOpen(false); trigger.current?.focus(); }
   }}><Logo /><nav className="ora-links" aria-label="Main navigation"><Link href="/#coverage">Coverage</Link><Link href="/#live">Baseline</Link><Link href="/#methodology">Methodology</Link>{links}</nav><button ref={trigger} className="icon-button mobile-menu" onClick={() => setOpen(!open)} aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} aria-controls="mobile-navigation">{open ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}</button>{open && <nav id="mobile-navigation" className="mobile-links" aria-label="Mobile navigation"><Link href="/#coverage" onClick={() => setOpen(false)}>Coverage</Link><Link href="/#live" onClick={() => setOpen(false)}>Baseline</Link><Link href="/#methodology" onClick={() => setOpen(false)}>Methodology</Link>{links}</nav>}</header>;
 }

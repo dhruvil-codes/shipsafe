@@ -66,13 +66,23 @@
 .inline-results .report-metrics { margin: 0; }
 .inline-results .report-metrics .metric-unavailable { font-size: clamp(28px, 3vw, 40px); line-height: 1.2; letter-spacing: -.03em; }
 .inline-results .panel { min-width: 0; }
-.inline-finding-card { border-top: 1px solid var(--border); padding-block: 16px; }
-.finding-row { display: flex; align-items: flex-start; gap: 8px; }
-.finding-toggle { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; width: 100%; min-width: 0; padding: 8px; margin: -8px 0 -8px -8px; background: transparent; border: 0; border-radius: 8px; text-align: left; }
+.findings-stream { display: grid; gap: 12px; }
+.inline-finding-card { border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: var(--surface); }
+.finding-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 20px; }
+.finding-toggle { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; width: 100%; min-width: 0; min-height: 44px; padding: 8px; margin: -8px; background: transparent; border: 0; border-radius: 8px; text-align: left; }
 .finding-toggle:hover { background: var(--info-wash); }
 .finding-toggle > div { min-width: 0; }
 .finding-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.finding-id { flex-basis: 100%; font-size: 12px; overflow-wrap: anywhere; }
+.finding-id { font: 12px/1.5 var(--mono); overflow-wrap: anywhere; }
+.finding-toggle h3 { overflow-wrap: anywhere; line-height: 1.4; }
+.finding-actions { display: flex; align-items: center; gap: 8px; }
+.finding-actions .copy-control { display: grid; justify-items: start; gap: 4px; max-width: 200px; }
+.finding-actions .text-button { gap: 6px; font-size: 13px; white-space: nowrap; }
+.finding-actions .copy-control [role="status"] { font-size: 12px; }
+.finding-toggle:focus-visible, .tree-scan:focus-visible, .tree-host:focus-visible { outline: 2px solid var(--info); outline-offset: 4px; }
+.scan-live-progress { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 14px; color: var(--muted); }
+.scan-progress-spinner { width: 14px; height: 14px; flex-shrink: 0; border: 2px solid var(--info-border); border-top-color: var(--info); border-radius: 50%; animation: scan-spin 800ms linear infinite; }
+@keyframes scan-spin { to { transform: rotate(360deg); } }
 .finding-chevron { flex-shrink: 0; font-size: 20px; color: var(--info); }
 .finding-permalink { flex-shrink: 0; color: var(--info); }
 .finding-expanded-body { margin-top: 20px; }
@@ -114,6 +124,10 @@
 @media (max-width: 560px) { .baseline-scoreboard { align-items: flex-start; gap: 12px; padding: 16px; } .baseline-score-gauge { flex-basis: 116px; } .baseline-score-gauge svg { width: 108px; height: 108px; } .baseline-score-copy h4 { font-size: 17px; } }
 @media (max-width: 480px) { .inline-tree { padding: 16px; } .inline-metrics { grid-template-columns: 1fr; gap: 16px; } .inline-metrics div { display: flex; justify-content: space-between; align-items: center; } .output-footer { flex-direction: column; gap: 8px; } .inline-finding summary { flex-wrap: wrap; } }
 @media (max-width: 600px) {
+  .inline-finding-card { padding: 16px; }
+  .finding-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .finding-actions { justify-content: space-between; border-top: 1px solid var(--border); padding-top: 8px; }
+  .finding-expanded-body { margin-top: 16px; }
   .scan-session { padding: 16px; }
   .inline-results > .panel { padding: 16px; }
   .report-heading h3 { font-size: 28px; }
@@ -125,7 +139,7 @@
   .inline-results .report-metrics { gap: 16px; }
   .inline-results .notice { padding: 16px; }
 }
-@media (prefers-reduced-motion: reduce) { .scan-session, .scan-status-pulse { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .scan-session, .scan-status-pulse, .scan-progress-spinner { animation: none; } }
 
 /* Mode selection and proof remain part of the existing inline assessment. */
 .scan-mode { display: flex; flex-wrap: wrap; gap: 12px; max-width: 680px; margin: 0 auto 20px; border: 0; padding: 0; }

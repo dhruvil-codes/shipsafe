@@ -111,11 +111,18 @@
 /* Landing: keep Ora's composition and give the content a consistent measure. */
 .ora { position: relative; isolation: isolate; }
 .ora .ora-hero { position: relative; isolation: isolate; }
-.hero-ascii { position: absolute; z-index: -1; inset: 0 0 auto; height: 760px; pointer-events: none; opacity: .6; }
-.hero-ascii::after { display: none; }
-@media(max-width:600px) { .hero-ascii { height: 640px; opacity: .42; } .hero-ascii::after { display: none; } }
+.hero-ascii { position: absolute; z-index: -1; inset: 80px 0 auto; height: 560px; overflow: hidden; pointer-events: none; opacity: .48; mask-image: linear-gradient(to bottom, transparent, black 18%, black 60%, transparent); }
+.hero-ascii::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 35% 65% at 50% 45%, var(--page) 20%, transparent 100%); }
+@media(max-width:600px) { .hero-ascii { height: 440px; opacity: .3; } }
 @media print { .hero-ascii { display: none; } }
-.ora .ora-nav { flex-wrap: wrap; row-gap: 0; background: transparent; border-bottom: 0; }
+.ora .ora-nav { position: relative; z-index: 10; flex-wrap: wrap; row-gap: 0; min-height: 80px; background: var(--page); border-bottom: 1px solid var(--border); }
+.ora .ora-nav .brand { min-height: 64px; }
+.ora .ora-links { gap: 24px; }
+.ora .ora-links a { white-space: nowrap; }
+.ora .ora-links a:last-child { color: var(--info); }
+.ora .ora-nav a:focus-visible, .ora .ora-nav button:focus-visible { outline: 2px solid var(--info); outline-offset: 4px; border-radius: 4px; }
+.ora .ora-nav .mobile-links { flex: 0 0 100%; padding: 8px 0 20px; border-top: 1px solid var(--border); }
+.ora .ora-nav .mobile-links a { display: flex; align-items: center; min-height: 44px; padding: 10px 4px; }
 .ora .ora-links a { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
 .ora .ora-links .nav-workspace { color: var(--info); }
 .ora .ora-hero { padding-top: 80px; max-width: 1120px; }
@@ -210,6 +217,11 @@
   .ora .ora-board li { min-height: 68px; }
 }
 @media (max-width:800px) {
+  .hero-ascii { top: 72px; }
+  .ora .ora-nav { padding-inline: 24px; min-height: 72px; }
+  .ora .ora-links { display: none; }
+  .ora .ora-nav .mobile-menu { display: inline-flex; }
+  .ora .ora-nav .mobile-links { display: flex; }
   :root { --space-section: 64px; }
   .ora .ora-hero { padding-top: 64px; }
   .ora .ora-h1 { font-size: 44px; }

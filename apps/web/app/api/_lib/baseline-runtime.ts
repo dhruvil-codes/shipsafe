@@ -258,11 +258,14 @@ export function kickQueue(): void {
             : "The baseline request could not complete. Temporary job cleanup was verified; no report was generated.");
         }
         const cleanupUnverified = error instanceof CleanupError;
+        const isCapacityError = error instanceof Error && /no room|capacity|short of free memory/i.test(error.message);
         emit(controller.signal.aborted ? "CANCELLED" : "FAILED", controller.signal.aborted
           ? "Cancellation processed. No successful outcome inferred."
           : cleanupUnverified
             ? "Scan failed because job cleanup could not be verified. The shared worker is quarantined; no successful report inferred."
-            : "Scan did not produce a complete report. No score or finding was inferred.");
+            : isCapacityError
+              ? "InstaBox micro-VM paused: The cloud host currently has insufficient free memory to resume the sandbox. Please try again in a few minutes. No score or finding was inferred."
+              : "Scan did not produce a complete report. No score or finding was inferred.");
       } finally { apiStore.releaseExecution(scan.id); }
     }
   })().finally(() => { state.shipSafeQueue = undefined; });
