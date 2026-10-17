@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shipsafe",
+  "compatibility_date": "2026-10-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "deploy/cloudflare/worker.ts",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shipsafe-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "deploy/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "REPORTS_BUCKET",
+      "bucket_name": "shipsafe-reports"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "RATE_LIMIT_PER_IP_MINUTE": "15",
+    "RATE_LIMIT_PER_TARGET_MINUTE": "3",
+    "MAX_QUEUE_DEPTH": "100",
+    "CACHE_TTL_SECONDS": "1200",
+    "ENABLE_TURNSTILE": "false"
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  }
+}
