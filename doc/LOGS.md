@@ -382,4 +382,5 @@
 - Severity design system: introduced standardized `SeverityBadge` component with color-coded dot and pill styles for Critical (Red), High (Orange), Medium (Amber), Low/Info (Sky), and Passed (Green).
 - Card-based findings: refactored finding rows into enclosed modern cards with a two-column header, clean badges, crisp typography, and a unified action toolbar (Copy AI Fix Prompt with copy confirmation, evidence toggle, and permalink).
 - Validation: all 152 Vitest tests passed, 7 monorepo packages typecheck clean, committed in `e7f204a` and pushed to `origin/main`.
+- Removed white blurry overlay: disabled `.hero-ascii::after` radial gradient wash (`rgb(252 252 252 / 96%)`) in `polish.css` and removed radial mask-image from `.bg-grid-page` in `globals.css` so engineering grid lines remain crisp and visible across the entire hero and scan interface.
 
