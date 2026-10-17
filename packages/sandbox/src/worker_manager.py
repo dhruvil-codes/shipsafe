@@ -558,7 +558,7 @@ class WorkerManager:
 
         # Deep scan is permitted only if active deep is 0, active standard <= 1, and system RAM permits.
         avail_deep = 0
-        if active_deep < self.max_deep and active_standard <= 1 and mem_available_mb >= 1500 and metrics.get("can_run_deep", False):
+        if active_deep < self.max_deep and active_standard <= 1 and mem_available_mb >= 1500:
             avail_deep = 1
 
         return avail_standard, avail_deep, active_hosts
