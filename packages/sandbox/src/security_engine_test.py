@@ -13,15 +13,18 @@ def response(body=b'<html><script src="https://third.party/app.js"></script></ht
 def grant(classes=None):
     return {'hostname':'example.com','expiresAt':(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=5)).isoformat(),'classes':classes or ['configuration','discovery','cors']}
 class ScopeTests(unittest.TestCase):
-    def test_www_redirect_blocked(self):
+    def test_apex_to_www_redirect_allowed(self):
         c=engine.Collector(lambda _:None,URL,'standard')
-        with patch.object(c,'request',return_value=response(status=302,headers=[('Location','https://www.example.com/')])) as r:
-            self.assertEqual(c.follow(URL)[3],'REDIRECT_HOST')
-            self.assertEqual(r.call_count,1)
+        responses=[response(status=302,headers=[('Location','https://www.example.com/')]),response()]
+        with patch.object(c,'request',side_effect=responses) as r:
+            final_url,response_,upgraded,stop=c.follow(URL)
+            self.assertIsNone(stop)
+            self.assertEqual(engine.urlsplit(final_url).hostname,'www.example.com')
+            self.assertEqual(r.call_count,2)
     def test_scope_before_dns(self):
         c=engine.Collector(lambda _:None,URL,'standard')
         with patch.object(c,'resolve') as resolve:
-            for u in ('https://example.com/admin','https://www.example.com/','https://example.com/?q=x'):
+            for u in ('https://example.com/admin','https://other.example.com/','https://example.com/?q=x'):
                 with self.assertRaises(baseline.ScopeError): c.request(u)
             resolve.assert_not_called()
     def test_grant_validation(self):
@@ -141,7 +144,7 @@ class ReportTests(unittest.TestCase):
         _,requests=self.run_report(initial=response(b'<html><!--# sourceMappingURL=https://other.com/app.js.map -->'))
         self.assertFalse(any(engine.urlsplit(u).hostname!='example.com' for u,_ in requests))
     def test_partial_withholds_score(self):
-        report,requests=self.run_report(initial=response(status=302,headers=[('Location','https://www.example.com/')]))
+        report,requests=self.run_report(initial=response(status=302,headers=[('Location','https://www.other.com/')]))
         self.assertEqual(len(requests),1)
         self.assertTrue(report['manifest']['scopeLimited'])
         self.assertIsNone(report['manifest']['posture']['value'])

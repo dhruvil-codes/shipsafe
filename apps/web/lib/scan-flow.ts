@@ -58,28 +58,7 @@ export function initialEngines(): EngineCheck[] {
   }));
 }
 
-/** Normalize + validate raw user input. Auto-prepends https:// when missing. */
-export function normalizeUrlInput(raw: string): { ok: true; url: string } | { ok: false; error: string } {
-  const trimmed = raw.trim();
-  if (!trimmed) return { ok: false, error: "Enter a URL to scan." };
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
-    return { ok: false, error: "Only http and https URLs are allowed." };
-  }
-  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  let parsed: URL;
-  try {
-    parsed = new URL(withProto);
-  } catch {
-    return { ok: false, error: "Enter a valid http(s) URL, e.g. https://example.com" };
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return { ok: false, error: "Only http and https URLs are allowed." };
-  }
-  if (!parsed.hostname) {
-    return { ok: false, error: "Enter a valid http(s) URL, e.g. https://example.com" };
-  }
-  return { ok: true, url: parsed.href };
-}
+export { normalizeUrlInput } from "./url";
 
 export type StreamEvent =
   | { kind: "sandbox"; sandboxId: string }

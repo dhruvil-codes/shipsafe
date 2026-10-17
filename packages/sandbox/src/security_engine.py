@@ -113,7 +113,7 @@ class Collector(baseline.Collector):
 
     def approve(self, url):
         candidate = baseline.validate_url(url)
-        if urlsplit(candidate).hostname != self.hostname:
+        if urlsplit(candidate).hostname not in baseline.site_aliases(self.hostname):
             raise baseline.ScopeError("Exact host required", "REDIRECT_HOST")
         self.paths.add(urlsplit(candidate).path)
         return candidate
@@ -137,7 +137,7 @@ class Collector(baseline.Collector):
     def request(self, url, origin=False):
         normalized = baseline.validate_url(url)
         parsed = urlsplit(normalized)
-        if parsed.hostname != self.hostname or parsed.path not in self.paths:
+        if parsed.hostname not in baseline.site_aliases(self.hostname) or parsed.path not in self.paths:
             raise baseline.ScopeError("Unapproved request", "REQUEST_SCOPE")
         if self.mode == "deep":
             classes = grant_valid(self.grant, self.hostname)
@@ -195,7 +195,7 @@ class Collector(baseline.Collector):
                 return url, response, upgraded, "REDIRECT_MISSING" if not locations else "REDIRECT_AMBIGUOUS"
             try:
                 candidate = baseline.validate_url(urljoin(url, locations[0]))
-                if urlsplit(candidate).hostname != self.hostname:
+                if urlsplit(candidate).hostname not in baseline.site_aliases(self.hostname):
                     raise baseline.ScopeError("Exact hostname required", "REDIRECT_HOST")
                 if urlsplit(url).scheme == "https" and urlsplit(candidate).scheme != "https":
                     raise baseline.ScopeError("HTTPS downgrade", "HTTPS_DOWNGRADE")

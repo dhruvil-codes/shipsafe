@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { inlineTarget, recordedSummary, scanBranches } from "./inline-scan";
 
 describe("URL-first inline assessments", () => {
-  it("accepts a bare domain and retains the submitted path", () => {
-    expect(inlineTarget(" app.company.com/start ")).toEqual({ url: "https://app.company.com/start", hostname: "app.company.com" });
+  it("accepts a bare domain and normalizes to its origin", () => {
+    expect(inlineTarget(" app.company.com/start ")).toEqual({ url: "https://app.company.com/", hostname: "app.company.com" });
   });
-  it.each(["", "localhost", "ftp://company.com", "https://user:secret@company.com", "https://company.com/#token", "https://company.com:8443"])("rejects unsupported browser input %s", raw => {
+  it("strips paths, queries, and fragments to the origin", () => {
+    expect(inlineTarget("https://company.com/path?q=1#token")).toEqual({ url: "https://company.com/", hostname: "company.com" });
+  });
+  it.each(["", "localhost", "ftp://company.com", "https://user:secret@company.com", "https://company.com:8443"])("rejects unsupported browser input %s", raw => {
     expect(() => inlineTarget(raw)).toThrow();
   });
   it("keeps a subdomain distinct from its parent in the scan tree", () => {
