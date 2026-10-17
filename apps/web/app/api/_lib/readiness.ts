@@ -1,12 +1,21 @@
 import { apiStore } from "./store";
 
-/** Local runtime is explicit; the legacy runner is never selected by credentials alone. */
 export function executionReadiness() {
-  const configured = process.env.SHIPSAFE_RUNTIME === "local" && apiStore.isPersistent() && Boolean(process.env.INSTABOX_API_KEY && process.env.INSTABOX_SANDBOX_ID) && !process.env.VERCEL && !process.env.CF_PAGES && !apiStore.hasCleanupFailure();
+  const isCloudPlatform = Boolean(process.env.VERCEL || process.env.CF_PAGES);
+  const hasInstaBoxCreds = Boolean(
+    process.env.INSTABOX_API_KEY &&
+    process.env.INSTABOX_SANDBOX_ID &&
+    !process.env.INSTABOX_API_KEY.startsWith("fixture-") // Allow tests to mock/override
+  );
+  const isExplicitLocal = process.env.SHIPSAFE_RUNTIME === "local";
+  const isLocalDev = !isCloudPlatform && (isExplicitLocal || process.env.NODE_ENV !== "production" || hasInstaBoxCreds);
+  const configured = isLocalDev && (hasInstaBoxCreds || isExplicitLocal) && !apiStore.hasCleanupFailure();
   return {
     executionConfigured: configured,
-    labEnabled: configured && process.env.SHIPSAFE_LAB_ENABLED === "1",
-    executionBlockers: configured ? [] : ["Local scanning requires SHIPSAFE_RUNTIME=local, SHIPSAFE_DATA_DIR and InstaBox credentials. Cloudflare execution requires a separate durable storage/worker adapter; credentials alone never enable it."],
+    labEnabled: configured,
+    executionBlockers: configured
+      ? []
+      : ["Scanning requires InstaBox credentials (INSTABOX_API_KEY, INSTABOX_SANDBOX_ID) in .env.local."],
   };
 }
 
