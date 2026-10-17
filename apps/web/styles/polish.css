@@ -111,9 +111,9 @@
 /* Landing: keep Ora's composition and give the content a consistent measure. */
 .ora .ora-hero { position: relative; isolation: isolate; }
 .ora-hero-stage { position: relative; isolation: isolate; }
-.hero-ascii { position: absolute; z-index: -1; inset: 0 0 auto; height: 680px; pointer-events: none; opacity: .6; mask-image: linear-gradient(to bottom, transparent, black 16%, black 66%, transparent); }
-.hero-ascii::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 32% 58% at 50% 42%, rgb(252 252 252 / 96%) 15%, rgb(252 252 252 / 76%) 55%, transparent 100%); }
-@media(max-width:600px) { .hero-ascii { height: 580px; opacity: .42; } .hero-ascii::after { background: radial-gradient(ellipse 70% 55% at 50% 43%, rgb(252 252 252 / 94%) 15%, rgb(252 252 252 / 70%) 60%, transparent); } }
+.hero-ascii { position: absolute; z-index: -1; inset: 0 0 auto; height: 680px; pointer-events: none; opacity: .6; }
+.hero-ascii::after { display: none; }
+@media(max-width:600px) { .hero-ascii { height: 580px; opacity: .42; } .hero-ascii::after { display: none; } }
 @media print { .hero-ascii { display: none; } }
 .ora .ora-nav { flex-wrap: wrap; row-gap: 0; }
 .ora .ora-links a { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
