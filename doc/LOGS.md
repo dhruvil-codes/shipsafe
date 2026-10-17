@@ -375,3 +375,11 @@
 - Added .bg-grid-subtle background pattern below the Hero section.
 - Unnested finding button and permalink for valid semantic HTML.
 - Validation: 152 Vitest tests passed, 7 monorepo packages typecheck clean.
+
+## 41. Scan terminal staging, full-bleed grid, severity pills & findings card overhaul [2026-10-17]
+- Terminal staging: added an active 5-step animated sequencer during `QUEUED` / `PROVISIONING` states with millisecond telemetry before check events stream in, plus an animated pulsing beacon and micro-spinner in the live progress indicator.
+- Full-bleed grid: updated `.bg-grid-page` in `globals.css` with a responsive radial mask to span the entire viewport width, covering outer page margins and borders seamlessly.
+- Severity design system: introduced standardized `SeverityBadge` component with color-coded dot and pill styles for Critical (Red), High (Orange), Medium (Amber), Low/Info (Sky), and Passed (Green).
+- Card-based findings: refactored finding rows into enclosed modern cards with a two-column header, clean badges, crisp typography, and a unified action toolbar (Copy AI Fix Prompt with copy confirmation, evidence toggle, and permalink).
+- Validation: all 152 Vitest tests passed, 7 monorepo packages typecheck clean, committed in `e7f204a` and pushed to `origin/main`.
+
