@@ -276,12 +276,18 @@ body {
   border-color: rgba(34, 197, 94, 0.2);
 }
 
-.bg-grid-subtle {
-  background-image: linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
+.bg-grid-subtle, .bg-grid-page {
   background-size: 32px 32px;
+  background-image: linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0.4) 100%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0.4) 100%);
 }
 @media (prefers-color-scheme: dark) {
-  .bg-grid-subtle {
-    background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+  .bg-grid-subtle, .bg-grid-page {
+    background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px);
   }
 }
+@keyframes pulse-beacon { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(1.4); } }
+.animate-pulse-beacon { animation: pulse-beacon 1.2s ease-in-out infinite; }
+@keyframes spin-micro { to { transform: rotate(360deg); } }
+.micro-spinner { width: 12px; height: 12px; border: 2px solid rgba(0,0,0,0.1); border-top-color: currentColor; border-radius: 9999px; animation: spin-micro .6s linear infinite; }
