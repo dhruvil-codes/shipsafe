@@ -1,208 +1,114 @@
-# ShipSafe 🛡️
+# ShipSafe
 
-> **Evidence-First Web Application Security Testing Engine**
-> *Zero Hallucinations · Real VM Sandbox Execution · Strict Authorization Controls*
+An evidence-first, open-source web application security testing engine. It runs non-destructive baseline checks and deep authorized security scans inside ephemeral micro-VM sandboxes with real-time SSE telemetry and zero AI hallucinations.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15.5-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-fbf0df.svg?style=flat-square&logo=bun)](https://bun.sh/)
 [![Tests](https://img.shields.io/badge/Vitest-152%20Passed-success.svg?style=flat-square&logo=vitest)](https://vitest.dev/)
-[![Python](https://img.shields.io/badge/Python-3.13%20(49%20Passed)-blue.svg?style=flat-square&logo=python)](https://python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B%20(49%20Passed)-blue.svg?style=flat-square&logo=python)](https://python.org/)
 [![Sandbox](https://img.shields.io/badge/InstaBox-Micro--VM-orange.svg?style=flat-square)](https://instabox.sh/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
----
+![ShipSafe scanner hero](assets/hero-scanner.png)
 
-## Overview
+A local-first and cloud-ready security scanner for modern web applications. Enter a public URL to run 40+ deterministic baseline checks across TLS/SSL configurations, HTTP security headers, cookie flags, DNS CAA/SPF/DMARC records, mixed content, and public metadata leakage. Completed scans stream live telemetry events to an interactive terminal, calculate an un-inflated evidence score, and offer an expandable deep scan workflow with cryptographic DNS ownership verification and isolated containerized engines (Nuclei & OWASP ZAP).
 
-**ShipSafe** is an open-source, evidence-first web application security scanner for SaaS developers and security teams. Unlike traditional "AI security scanners" that hallucinate speculative findings, ShipSafe operates on a **strict RFC 2119 evidence-first invariant**:
+![ShipSafe assessment report](assets/assessment-score.png)
 
-* **Evidence First**: Every finding is backed by deterministic cryptographic evidence, raw headers, or reproducible scanner outputs.
-* **No Credit for What Did Not Run**: Skipped or untested checks are marked `NOT_TESTED` and earn zero score credit.
-* **Authorization Before Action**: Active testing is strictly locked behind domain verification (DNS TXT record challenge) and expiring scoped consent.
-* **Pull Architecture (S-09)**: Sandboxed VMs never hold control-plane secrets or dial home; the host orchestrates execution via the `@insforge/instabox-sdk`.
-* **Kernel-Level Sandboxing**: Linux `prlimit` bounds memory (256 MiB), CPU time (45s), and processes (32) with anti-SSRF IP pinning and advisory serialization locks.
+> **Evidence-first note.** A confirmed finding MUST be backed by raw scanner output or recorded network response data. ShipSafe never uses LLMs to speculate or invent vulnerabilities. Skipped or untested checks are explicitly marked and earn zero score credit. Scans execute exclusively in disposable, kernel-isolated compute (InstaBox micro-VMs) and are immediately torn down upon completion.
 
----
+## Core Invariants
 
-## Visual Walkthrough
+ShipSafe enforces five strict architectural invariants (RFC 2119):
 
-### 1. Minimal, Distraction-Free Scanner Hero
-Enter any website URL to instantly run a bounded, safe Standard Scan against the exact hostname.
-
-![ShipSafe Hero Scanner](assets/hero-scanner.png)
-
----
-
-### 2. Live Terminal Streaming
-Watch every elementary check run in real time via Server-Sent Events (SSE) streamed directly from the isolated InstaBox VM.
-
-![ShipSafe Terminal Stream](assets/terminal-stream.png)
-
----
-
-### 3. Transparent Security Posture Score
-Scores are calculated as $\frac{\text{Passed Eligible Checks}}{\text{Applicable Eligible Checks}} \times 100$. Inventories and untested checks are excluded so scores are never artificially inflated.
-
-![Assessment Score & Metrics](assets/assessment-score.png)
-
----
-
-### 4. Executed Baseline Checks with Actionable Fixes
-Filterable review cards displaying concrete evidence, impact rationales, and exact framework remediation steps.
-
-![Executed Checks Panel](assets/executed-checks.png)
-
----
-
-### 5. Authorized Deep Scan & DNS Ownership Gate
-Deep active checks require cryptographic proof of domain control via a random DNS TXT token challenge at `_shipsafe.HOST` and expiring, per-action consent.
-
-![Deep Scan DNS Verification](assets/deep-preparation.png)
-
----
+1. **Evidence First**: Every reported finding contains reproducible raw data (headers, cert chains, DNS records, or response bodies).
+2. **No Credit for What Did Not Run**: The security score is calculated strictly as $\frac{\text{Passed Eligible Checks}}{\text{Applicable Eligible Checks}} \times 100$. Untested or deferred checks never improve scores.
+3. **Authorization Before Action**: High-intensity tests (repository probing, CORS origin reflection, Nuclei template execution) require verified domain control via a cryptographic DNS TXT challenge (`_shipsafe.HOST`) and explicit, expiring user consent.
+4. **Pull Architecture (S-09)**: Sandboxed VMs never hold control-plane secrets, API keys, or long-lived credentials, and never dial back to the ShipSafe control plane. The backend orchestrates execution via the official `@insforge/instabox-sdk`.
+5. **Disposable Compute (S-19)**: Every scan sandbox is bounded by strict Linux `prlimit` resource limits (256 MiB memory, 45s CPU, 32 processes) and is guaranteed to be terminated (`Sandbox.kill`) upon completion, failure, or cancellation.
 
 ## Scanning Modes
 
-ShipSafe provides two distinct, architecturally separated scanning profiles:
-
-### 1. Standard Scan (URL Only)
-*Zero configuration. Immediate execution. Low-impact and completely non-destructive.*
-
-* **TLS & Transport**: Validated HTTPS connection, HTTP-to-HTTPS upgrade verification, certificate expiration & SAN validation.
-* **HTTP Security Headers**: Strict-Transport-Security (HSTS), Content-Security-Policy (CSP), X-Frame-Options (clickjacking), X-Content-Type-Options (nosniff), Referrer-Policy, COOP, COEP, CORP, and Permissions-Policy.
-* **Cookie Hygiene**: Inspection of `Secure`, `HttpOnly`, `SameSite` (Strict/Lax), domain scope, path boundaries, lifetime, and `__Host-` / `__Secure-` prefixes.
-* **DNS Intelligence**: Anti-SSRF public address validation, DNS CAA records, SPF sender authentication, DMARC alignment, and MX records.
-* **Public Asset Leakage**: Insecure mixed content references in HTML, third-party script inventory, library version marker detection, and public source map (`sourceMappingURL`) references.
-* **Public Metadata**: RFC 9116 `security.txt`, `robots.txt`, `sitemap.xml`, server version disclosure, and diagnostic stack-trace markers.
+### 1. Standard Scan (Immediate Baseline)
+Non-destructive, non-intrusive assessment that requires zero authorization setup:
+* **TLS & Transport**: Cipher suites, protocol version (TLS 1.2/1.3), certificate expiration, validity periods, and SAN matching.
+* **HTTP Security Headers**: Strict-Transport-Security (HSTS with preload/subdomain checks), Content-Security-Policy (CSP), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Cross-Origin policies (COOP, COEP, CORP), and Permissions-Policy.
+* **Cookie Hygiene**: `Secure`, `HttpOnly`, `SameSite` flags, cookie path boundaries, max age, and `__Host-` / `__Secure-` prefix compliance.
+* **DNS Intelligence**: Public IP anti-SSRF validation, DNS CAA records, SPF records, DMARC alignment, and MX presence.
+* **Asset Exposure**: Insecure HTTP references inside HTTPS, public source map detection (`sourceMappingURL`), library version leakage, and RFC 9116 `security.txt` discovery.
 
 ### 2. Authorized Deep Scan (Verified Scope)
-*Unlocked only after verifying domain control (`_shipsafe.HOST` TXT record) and obtaining explicit, expiring per-class consent.*
+Unlocked only after completing a DNS TXT ownership challenge and granting scoped consent:
+* **Exposed Repositories**: Validates `/.git/HEAD` signatures without downloading repository history.
+* **Bounded Route Discovery**: Safely extracts up to 3 same-host links, automatically excluding query parameters and destructive keywords (`logout`, `delete`, `reset`).
+* **CORS Origin Reflection**: Validates uncredentialed alternate origin handling.
+* **Containerized Nuclei**: Runs safe, pre-pulled misconfiguration and exposure templates (`misconfiguration`, `exposure`, `ssl`), strictly excluding fuzzing, injection, and denial-of-service profiles.
+* **OWASP ZAP Baseline**: Passive response inspection (`zap-baseline.py`) for session management and anti-CSRF patterns.
 
-* **Exposed Repositories**: GET `/.git/HEAD` signature verification (never downloads sensitive source blobs or history).
-* **Bounded Discovery**: Extracts up to 3 same-host links without query parameters or state-mutating paths (`logout`, `delete`, `reset`).
-* **CORS Origin Reflection**: Uncredentialed alternate Origin (`https://shipsafe-origin.invalid`) validation.
-* **Nuclei Integration**: Pre-pulled container runner with 1,500+ vetted, safe templates (`misconfiguration`, `exposure`, `ssl`). Explicitly excludes all destructive/fuzzing/injection tags (`dos`, `fuzz`, `sqli`, `xss`, `rce`, `bruteforce`).
-* **OWASP ZAP Baseline**: Passive response analyzer (`zap-baseline.py`) for anti-CSRF token verification and header anti-patterns.
-
----
-
-## Project Structure
-
-ShipSafe is structured as a modular TypeScript + Python monorepo:
-
-```text
-shipsafe/
-├── apps/
-│   └── web/                   # Next.js 15 App Router frontend & API routes
-│       ├── app/               # Landing page, report viewer, scan API routes
-│       ├── components/        # Product UI, Terminal, DeepScanAuthorization modal
-│       └── lib/               # Assessment normalization, scoring, flow logic
-├── packages/
-│   ├── sandbox/               # InstaBox VM execution engine & Python scanners
-│   │   └── src/               # security_engine.py, baseline.py, security_registry.py
-│   ├── orchestration/         # Scan lifecycle orchestration & state machine
-│   ├── scoring/               # Posture scoring & explainability algorithms
-│   ├── adapters/              # OSINT & tool output normalizers
-│   ├── db/                    # Drizzle ORM schemas & database contracts
-│   └── shared/                # Shared TypeScript types, enums, & RFC constants
-├── doc/                       # Product requirements (PRD), rules, & engine specs
-├── assets/                    # Production UI screenshots & diagrams
-└── scripts/                   # Local runner, VM check & audit tools
-```
-
----
-
-## Getting Started
+## Build and run
 
 ### Prerequisites
+* [Bun](https://bun.sh) (v1.2+) or Node.js (v20+)
+* [Python 3.12+](https://python.org)
+* (Optional) [Docker](https://docker.com) or [InstaBox API Key](https://instabox.sh) for sandbox execution
 
-* **Bun** (v1.2+) or Node.js (v20+)
-* **Python** (v3.11+) with standard libraries
-* **InstaBox Micro-VM** (or offline fake provider for local testing)
-
-### 1. Installation
-
-```bash
+```sh
+# Clone repository
 git clone https://github.com/dhruvil-codes/shipsafe.git
 cd shipsafe
+
+# Install workspace dependencies
 bun install
-```
 
-### 2. Environment Setup
-
-Create `.env.local` in the project root:
-
-```bash
-cp .env.example .env.local
-```
-
-Configure your credentials:
-
-```ini
-# InstaBox Cloud Micro-VM (https://instabox.sh/docs)
-INSTABOX_API_KEY=ibk_live_xxxxxxxxxxxxxxxxxxxxxxxx
-INSTABOX_SANDBOX_ID=sbx_xxxxxxxxxxxxxxxxxxxxxxxx
-SANDBOX_PROVIDER=instabox
-
-# App & Local Runtime
-NODE_ENV=development
-PORT=3000
-SHIPSAFE_PORT=3001
-SHIPSAFE_DATA_DIR=.artifacts/local-scans
-```
-
-### 3. Verify VM Tool Dependencies
-
-Run our built-in VM verification script to verify all scanner tools (`dig`, `openssl`, `prlimit`, `docker`, `nuclei`, `zap`) on your VM:
-
-```bash
-bun scripts/check-vm.mjs
-```
-
-### 4. Start the Application
-
-```bash
+# Start development server
 bun run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) (or your configured port).
+Visit [http://localhost:3000](http://localhost:3000) to view the application.
 
----
+### Environment Configuration
 
-## Automated Test Suites
+Create a `.env` file in the root or in `apps/web/`:
 
-ShipSafe maintains 100% passing test suites across both TypeScript and Python:
+```sh
+# InstaBox Micro-VM credentials (required for remote sandboxing)
+INSTABOX_API_KEY=your_instabox_api_key
 
-```bash
-# Run all workspace Vitest suites (152 tests across 18 files)
+# Optional: Port configuration (defaults to 3000)
+PORT=3000
+```
+
+*Note: If no InstaBox API key is set, ShipSafe automatically falls back to safe local execution mode for development.*
+
+## AI Agents & MCP
+
+ShipSafe includes an integrated verification suite and machine-readable data contracts conforming to [Model Context Protocol (MCP)](https://modelcontextprotocol.io) principles:
+
+* **Real-time SSE Event Stream**: Streams JSON events (`check_start`, `check_complete`, `summary`) with millisecond timestamps and check IDs to `GET /api/scans/:id/stream`.
+* **Standardized JSON Reports**: Export machine-readable evidence summaries at `GET /api/scans/:id/report`.
+* **Deterministic Remediation**: Each check finding includes context-aware code remediation prompts tailored for Next.js, Express, Nginx, Caddy, and Apache.
+
+## Tests
+
+```sh
+# Run all workspace unit and integration tests (Vitest)
 bun run test
 
-# Run all Python security scanner tests (49 unit tests)
+# Run sandbox Python security engine tests
 python -m unittest discover -s packages/sandbox/src -p "*_test.py"
 
-# Run TypeScript typechecks across all 7 workspace packages
+# Typecheck all packages
 bun run typecheck
 
-# Build the production Next.js application
+# Production build check
 bun run build
 ```
 
----
-
-## Security Invariants & Policy
-
-| Invariant | Implementation Mechanism |
-| :--- | :--- |
-| **No Hallucinations** | Deterministic Python parsers only; LLMs never execute commands or invent payloads. |
-| **Anti-SSRF** | DNS address resolution rejects RFC 1918, loopback, link-local, and cloud metadata (`169.254.169.254`). |
-| **Address Pinning** | Sockets connect directly to the pinned IP while validating TLS against the SNI hostname. |
-| **Process Quotas** | Linux `prlimit` limits execution memory to 256 MiB and CPU execution to 45s. |
-| **Concurrency Cap** | Advisory `flock` serializes executions to strictly respect InstaBox's 4-exec quota limit. |
-| **Clean Teardown** | Process cleanup escalates from `SIGTERM` to `SIGKILL` before purging ephemeral directories. |
-
----
+* **Vitest Workspace Suite**: 152 tests across 18 test files covering API routes, security policies, verification tokens, scan flow orchestration, and report normalization.
+* **Python Engine Suite**: 49 tests verifying certificate inspection, header auditing, SSRF mitigations, DNS token generation, and sandbox cleanup.
+* **Production Build**: Full Next.js 15 static site generation and server action verification.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT © [ShipSafe Contributors](LICENSE)
