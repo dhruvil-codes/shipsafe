@@ -50,6 +50,8 @@ export default function InlineScan() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
   const [checkFilter, setCheckFilter] = useState<string>("all");
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [showAllChecks, setShowAllChecks] = useState(false);
 
   const [lines, setLines] = useState<string[]>([]);
   const [liveEvents, setLiveEvents] = useState<{ id: string; stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }[]>([]);
@@ -277,7 +279,7 @@ export default function InlineScan() {
   const filteredFindings = report ? filterFindings(report.findings, severityFilter) : [];
   const filteredChecks = checkFilter === "all" ? checks : checks.filter(c => c.status === checkFilter);
 
-  return <div id="scan" className="inline-scan">
+  return <div id="scan" className="inline-scan bg-grid-subtle">
     <form className="ora-scan" onSubmit={submit} noValidate>
       <label className="sr-only" htmlFor="scan-url">Website URL</label>
       <input ref={input} id="scan-url" type="text" inputMode="url" autoComplete="url" spellCheck={false} placeholder="Enter your website URL" value={value} onChange={event => { setValue(event.target.value); setInputError(""); }} disabled={Boolean(busy) || active} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "scan-url-error" : "scan-hint"} />
@@ -311,7 +313,12 @@ export default function InlineScan() {
         </div>
       </div>
       {error && <p className="notice error-notice" role="alert">{error}</p>}
-      {report && <section className="inline-results stack" aria-label="Recorded results">
+      {active && <div className="scan-live-progress" role="status" aria-live="polite">
+        <span className="scan-status-pulse" aria-hidden="true" />
+        <span>Analyzing security controls ({displayedEvents.filter(e => e.stage === "check_done").length}/55 checks evaluated)…</span>
+        <div className="scan-progress-bar"><div className="scan-progress-fill" style={{ width: `${Math.min(100, (displayedEvents.filter(e => e.stage === "check_done").length / 55) * 100)}%` }} /></div>
+      </div>}
+      {report && isTerminal(report.scan.status) && <section className="inline-results stack" aria-label="Recorded results">
         <div className="report-heading">
           <div>
             <span className="eyebrow">{report.archived ? "Archived sample" : isLab ? "Private synthetic fixture" : scopeLimited ? "Scope-limited baseline" : "Security assessment"}</span>
@@ -362,11 +369,31 @@ export default function InlineScan() {
           </section>
         </div>
 
-        <aside className="notice notice-warning">
-          <strong>Assessment limits</strong>
-          <p>{isLab ? "This exhibit represents the recorded baseline assessment against an owned synthetic fixture only." : "This assessment covers bounded HTTP response-hardening, TLS/SSL configuration, redirect hygiene, cookies, and CORS boundaries."} Only recorded checks count. Review the check outcomes and recorded engine details below. Scores are security assessments, not compliance certifications.</p>
-        </aside>
+        <p className="small muted">Assessment limits: {isLab ? "recorded baseline against an owned synthetic fixture only." : "bounded HTTP response-hardening, TLS/SSL configuration, redirect hygiene, cookies, and CORS boundaries."} Only recorded checks count. Scores are security assessments, not compliance certifications.</p>
 
+        {hasManifest && (() => {
+          const obs = checks.filter(c => c.status === "observation" || c.status === "failed" || c.status === "warning");
+          const passed = checks.filter(c => c.status === "passed");
+          const deferred = checks.filter(c => c.status !== "passed" && c.status !== "observation" && c.status !== "failed" && c.status !== "warning");
+          const renderGroup = (title: string, items: typeof checks) => (
+            <details className="scan-accordion" style={{ marginBottom: 8 }}>
+              <summary>{title} ({items.length})</summary>
+              <ul style={{ listStyle: "none", padding: 0, margin: "8px 0" }}>
+                {(showAllChecks ? items : items.slice(0, 5)).map(c => (
+                  <li key={c.id} className="small" style={{ padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
+                    <strong>{c.id}</strong> — {c.title} <span className="muted">({c.status})</span>
+                  </li>
+                ))}
+              </ul>
+              {items.length > 5 && <button className="text-button" type="button" onClick={() => setShowAllChecks(v => !v)}>{showAllChecks ? "Show less" : `Show all ${items.length} ${title.toLowerCase()}`}</button>}
+            </details>
+          );
+          return <section className="panel stack" aria-label="Check catalog">
+            {renderGroup("Action Required / Observations", obs)}
+            {renderGroup("Passed Controls", passed)}
+            {renderGroup("Deferred / Inapplicable Capabilities", deferred)}
+          </section>;
+        })()}
         {modernProfile && <UnifiedResults results={unifiedResults} />}
         <section className="panel stack report-findings" aria-label="Findings">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
@@ -395,7 +422,13 @@ export default function InlineScan() {
                     <h3 style={{ margin: "8px 0 4px", fontSize: 18 }}>{f.title}</h3>
                     <span className="muted small">{isExpanded ? "Hide details" : "View evidence, remediation & fix prompt"}</span>
                   </div>
-                  <span aria-hidden="true" className="finding-chevron">{isExpanded ? "−" : "+"}</span>
+                  <span aria-hidden="true" className="finding-chevron">{isExpanded ? "-" : "+"}</span>
+                  <button className="button secondary" type="button" onClick={() => {
+                    const prompt = `Fix security finding: [${f.severity}] ${f.title} (${f.checkId || f.id})\nTarget host: ${report.scan.url}\nObserved evidence: ${f.evidence}\nRecommended fix: ${f.remediation}\nPlease update our web server / framework configuration (Next.js, Vercel headers, or Nginx) to address this hardening issue. Provide the exact code/config diff.`;
+                    void navigator.clipboard?.writeText(prompt);
+                    setCopiedPromptId(f.id);
+                    setTimeout(() => setCopiedPromptId(null), 1500);
+                  }}>{copiedPromptId === f.id ? "Copied!" : "Copy AI Fix Prompt"}</button>
                   </button>
                   <a href={`/report/${encodeURIComponent(report.scan.id)}/findings/${encodeURIComponent(f.id)}`} target="_blank" rel="noreferrer" className="icon-button finding-permalink" aria-label={`Open ${f.title} in a new tab`}>↗</a>
                 </div>
