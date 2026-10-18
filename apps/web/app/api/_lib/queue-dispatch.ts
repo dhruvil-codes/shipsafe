@@ -20,8 +20,8 @@ function durableDispatchEnabled(): boolean {
 
 /** Start durable runs for queued scans, with a DB reservation preventing request fan-out. */
 export async function dispatchQueue(): Promise<void> {
-  if (!process.env.VERCEL) {
-    // Local execution remains independent of the request lifetime.
+  if (process.env.CLOUDFLARE_WORKER_URL || !process.env.VERCEL) {
+    // Direct worker queue execution against InstaBox VM
     void kickQueue();
     return;
   }

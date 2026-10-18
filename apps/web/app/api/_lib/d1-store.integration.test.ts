@@ -37,5 +37,10 @@ describe("Cloudflare D1 live integration", () => {
     expect(fetchedScan).toBeDefined();
     expect(fetchedScan?.id).toBe(scan.id);
     expect(fetchedScan?.projectId).toBe(project.id);
+
+    // 5. Complete scan so it releases the active slot in D1
+    await store.completeExecution(scan.id, { score: 100, coverage: 100 }, [], "Integration test completed.");
+    const completed = await store.getScan(scan.id);
+    expect(completed?.status).toBe("COMPLETED");
   });
 });

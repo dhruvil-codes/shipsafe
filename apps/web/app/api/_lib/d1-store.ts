@@ -117,6 +117,37 @@ export class D1ScanStore {
     });
   }
 
+  private readonly executions = new Map<string, AbortController>();
+
+  async claimExecution(id: string): Promise<AbortController | undefined> {
+    if (this.executions.has(id)) return undefined;
+    const claimed = await this.transaction(store => {
+      const scan = store.getScan(id);
+      if (!scan || scan.status !== "QUEUED") return false;
+      store.updateScan(id, { status: "PROVISIONING" });
+      return true;
+    });
+    if (!claimed) return undefined;
+    const controller = new AbortController();
+    this.executions.set(id, controller);
+    return controller;
+  }
+
+  async abortExecution(id: string): Promise<void> {
+    this.executions.get(id)?.abort();
+    this.executions.delete(id);
+    await this.transaction(store => {
+      const scan = store.getScan(id);
+      if (scan && !TERMINAL_STATUSES.has(scan.status)) {
+        store.updateScan(id, { status: "CANCELLED" });
+      }
+    });
+  }
+
+  async releaseExecution(id: string): Promise<void> {
+    this.executions.delete(id);
+  }
+
   async heartbeatExecution(_id: string) { return true; }
   async reserveDispatch(_id: string) { return undefined; }
   async recordDispatch(_id: string, _token: string, _runId: string) {}

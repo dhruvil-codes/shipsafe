@@ -123,7 +123,17 @@ export default {
       if (method === "GET") {
         const row = await env.DB.prepare("SELECT value, revision FROM shipsafe_runtime_state WHERE id=1").first<{ value: string; revision: number }>();
         if (!row) return json({ error: "State row not found" }, 404);
-        return json({ value: JSON.parse(row.value), revision: row.revision });
+        let parsed = null;
+        try {
+          parsed = JSON.parse(row.value);
+        } catch {
+          try {
+            parsed = JSON.parse(row.value.replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+          } catch {
+            parsed = { version: 1, projects: [], owners: [], scans: [], findings: [], events: [] };
+          }
+        }
+        return json({ value: parsed, revision: row.revision });
       }
       if (method === "POST") {
         let body: any = {};
