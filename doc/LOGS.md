@@ -429,3 +429,11 @@
 - A private synthetic scan executed through the managed Vercel preview workflow and InstaBox, completed all 13 checks, recorded 13 check/check_done pairs and verified VM cleanup. No customer target was scanned for rollout validation.
 - Deployed production dpl_8ehxePqU4sFZSqzQaD5tcSUMVhDX to https://shipsafe.runs-on.dev/. Public-domain verification confirmed PostgreSQL persistence, execution readiness, the preview-created report visible across deployments, all 13 replayed check outcomes, terminal SSE closure, HTTP 404 without the owner capability and HTTP 503 from the disabled public lab endpoint.
 - Released the preview recovery coordinator lease after verification; production starts its coordinator on submission. Synchronized source and dependencies into D:/shipsafe; dependency installation succeeded. No commit or push was performed. Ignored proof artifacts are in the managed worktree under .artifacts/production-debug/.
+
+## 44. Migration to Cloudflare D1 persistent storage and Edge Worker Gateway [2026-10-18]
+- Replaced the PostgreSQL/Neon persistence layer with Cloudflare D1 serverless SQL database per user directive. Neon was decommissioned and removed from all code paths.
+- Provisioned Cloudflare D1 database `shipsafe-db` (`22811586-f691-4224-bf20-115f72a7f23d`) in APAC region and applied the production schema (`0001_init.sql`) with tables for `projects`, `project_owners`, `scans`, `scan_events`, `scan_findings`, `cached_reports`, `rate_limits`, and `shipsafe_runtime_state`.
+- Deployed the Cloudflare Edge Worker gateway to `https://shipsafe.dhruvilmistry16.workers.dev` with authenticated `/api/state` endpoint enforcing optimistic concurrency control (via `revision` tracking) for atomic transactions.
+- Created `apps/web/app/api/_lib/d1-store.ts` connecting the Next.js runtime store directly to Cloudflare D1. In-memory project deduplication and automatic retry were added to `InlineScan.tsx` to prevent `Project not found` 404s.
+- Validation: all 173 Vitest tests passed, including the live D1 integration test (`app/api/_lib/d1-store.integration.test.ts`), Next.js production build succeeded with code 0, and changes were pushed to `origin/main` (`774c8fa`).
+
