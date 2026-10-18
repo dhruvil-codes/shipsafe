@@ -58,4 +58,12 @@ Excluded from the default product: credential guessing, brute force, destructive
 
 ## Deployment still required
 
+### Vercel production runtime
+
+The owner selected Vercel with shared PostgreSQL state and Vercel Workflows. Production enqueue persists the job and outbox transactionally and waits for durable dispatch acknowledgement. A leased recovery workflow retries pending dispatch independently of browser/SSE connections. The API uses 300-second limits; a workflow step claims and executes at most one job. The earlier `after()` lifecycle patch is superseded by durable queue delivery in production. Local execution retains the in-process worker.
+
+Vercel must have `DATABASE_URL`, `SHIPSAFE_DURABLE_DISPATCH=workflow`, real system deployment identity and InstaBox settings. The runtime store refuses to fall back to `/tmp` in production. Database leases fence competing executions, cancellation wins late completion, and cleanup failures quarantine the worker. Setup, migration, actual verification and remaining rollout requirements are in [VERCEL-PRODUCTION.md](VERCEL-PRODUCTION.md). Saving environment variables alone does not update an existing deployment.
+
+References: [Next.js after](https://nextjs.org/docs/app/api-reference/functions/after), [Vercel duration configuration](https://vercel.com/docs/functions/configuring-functions/duration).
+
 The Cloudflare keepalive in `deploy/keepalive/` is prepared and mocked-tested, not deployed. No cron or 24/7 guarantee is active. On 2026-10-16, an SDK `setAutoSuspend(0)` call returned without error, but a fresh `getInfo()` still reported `autoSuspendMs: 1800000`; a harmless VM `true` command succeeded. A 20-minute Worker schedule can resume a paused box and run a harmless command, but its delivery and the provider's idle-reset behavior are not guaranteed. Wrangler currently has no authenticated Cloudflare account in this environment, so deployment and secret configuration remain pending. Cloudflare Workers Free can host a lightweight scheduled handler, but the full Next.js application and its CPU/runtime compatibility must be verified. This file store and in-process local dispatcher cannot be deployed to Workers unchanged: durable storage, dispatch/recovery, production abuse controls for self-attested scans and worker packaging remain deployment tasks. A workers.dev URL avoids buying a domain for the initial demo.

@@ -1,5 +1,6 @@
 node_modules/
 .next/
+apps/web/app/.well-known/workflow/
 dist/
 *.log
 .DS_Store
@@ -14,5 +15,7 @@ dashboard.html
 
 .artifacts/
 .data/
+.workflow-data/
+.vercel/
 __pycache__/
 *.pyc

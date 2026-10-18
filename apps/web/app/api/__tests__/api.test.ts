@@ -39,9 +39,13 @@ async function projectFor(cookie: string): Promise<Project> {
 beforeEach(() => {
   apiStore.reset();
   vi.clearAllMocks();
+  vi.stubEnv("VERCEL", "");
+  vi.stubEnv("DATABASE_URL", "");
+  vi.stubEnv("SHIPSAFE_RUNTIME", "");
+  vi.stubEnv("SHIPSAFE_LAB_ENABLED", "");
   dns.resolveTxt.mockReset().mockResolvedValue([]);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe("browser workspace and projects", () => {
   it("creates an HttpOnly capability and reports actual execution limitations", async () => {

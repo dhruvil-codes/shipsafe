@@ -1,6 +1,29 @@
 -- Cloudflare D1 Migration for ShipSafe Production
 -- Version: 0001_init.sql
 
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  environment TEXT NOT NULL,
+  security_authorization TEXT,
+  security_authorization_revision INTEGER DEFAULT 0,
+  verification_token TEXT NOT NULL,
+  verified_at TEXT,
+  verification_expires_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_owners (
+  project_id TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  PRIMARY KEY (project_id, owner),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_url ON projects (url);
+CREATE INDEX IF NOT EXISTS idx_project_owners_owner ON project_owners (owner);
+
 CREATE TABLE IF NOT EXISTS scans (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,

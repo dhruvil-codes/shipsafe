@@ -156,8 +156,8 @@ describe("local single worker queue", () => {
     const firstVm = fakeVm({ beforePoll: () => gate });
     const secondVm = fakeVm();
     dependencies.connect.mockResolvedValueOnce(firstVm.vm).mockResolvedValueOnce(secondVm.vm);
-    kickQueue();
-    kickQueue();
+    const completion = kickQueue();
+    expect(kickQueue()).toBe(completion);
     await vi.waitFor(() => expect(firstVm.run.mock.calls.some(([command]) => command.includes("f.seek("))).toBe(true));
     expect(dependencies.connect).toHaveBeenCalledTimes(1);
     expect(apiStore.getScan(second.id)?.status).toBe("QUEUED");

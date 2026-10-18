@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { apiStore } from "../../../_lib/store";
+import { runtimeStore } from "../../../_lib/runtime-store";
 import { DEEP_CLASSES } from "../../../_lib/security-policy";
 import { verifyProject } from "../../../_lib/verification";
-import { json, mutationAllowed, workspaceId } from "../../../_lib/workspace";
+import { json, mutationAllowed, serviceUnavailable, workspaceId } from "../../../_lib/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,9 @@ type Context = { params: Promise<{ id: string }> };
 /** Owner-only DNS instructions and the current bounded grant. */
 export async function GET(request: Request, context: Context): Promise<Response> {
   const { id } = await context.params;
-  const project = apiStore.getProject(workspaceId(request), id);
+  let project;
+  try { project = await runtimeStore.getProject(workspaceId(request), id); }
+  catch { return serviceUnavailable(); }
   if (!project) return json({ error: "Project not found" }, 404);
   const hostname = new URL(project.url).hostname;
   return json({ hostname, dnsRecord: { type: "TXT", name: `_shipsafe.${hostname}`, value: `shipsafe-verification=${project.verificationToken}` }, authorization: project.securityAuthorization ?? null });
@@ -26,15 +28,21 @@ export async function POST(request: Request, context: Context): Promise<Response
   if (!mutationAllowed(request)) return json({ error: "Cross-origin requests are not allowed" }, 403);
   const { id } = await context.params;
   const owner = workspaceId(request);
-  const project = apiStore.getProject(owner, id);
+  let project;
+  try { project = await runtimeStore.getProject(owner, id); }
+  catch { return serviceUnavailable(); }
   if (!project) return json({ error: "Project not found" }, 404);
   let body: unknown;
   try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const parsed = consentSchema.safeParse(body);
   if (!parsed.success) return json({ error: "Explicit consent and supported, unique test classes are required.", code: "CONSENT_REQUIRED" }, 400);
-  const result = await verifyProject(project);
+  let result;
+  try { result = await verifyProject(project); }
+  catch { return serviceUnavailable(); }
   if (!result.ok) return json({ error: result.error, code: "VERIFICATION_FAILED" }, 422);
-  const authorization = apiStore.authorizeDeep(owner!, id, parsed.data.classes, project.securityAuthorizationRevision ?? 0);
+  let authorization;
+  try { authorization = await runtimeStore.authorizeDeep(owner!, id, parsed.data.classes, project.securityAuthorizationRevision ?? 0); }
+  catch { return serviceUnavailable(); }
   if (!authorization) return json({ error: "Authorization changed while DNS was being verified. Submit fresh consent to continue.", code: "AUTHORIZATION_CHANGED" }, 409);
   return json({ authorization }, 201);
 }
@@ -44,6 +52,8 @@ export async function DELETE(request: Request, context: Context): Promise<Respon
   if (!mutationAllowed(request)) return json({ error: "Cross-origin requests are not allowed" }, 403);
   const { id } = await context.params;
   const owner = workspaceId(request);
-  if (!apiStore.getProject(owner, id)) return json({ error: "Project not found" }, 404);
-  return json({ revoked: true, cancelledScanIds: apiStore.revokeDeep(owner!, id) });
+  try {
+    if (!await runtimeStore.getProject(owner, id)) return json({ error: "Project not found" }, 404);
+    return json({ revoked: true, cancelledScanIds: await runtimeStore.revokeDeep(owner!, id) });
+  } catch { return serviceUnavailable(); }
 }

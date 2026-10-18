@@ -32,6 +32,7 @@ beforeEach(() => {
   apiStore.reset();
   vi.stubEnv("SHIPSAFE_RUNTIME", "local");
   vi.stubEnv("SHIPSAFE_LAB_ENABLED", "1");
+  vi.stubEnv("DATABASE_URL", "");
   vi.stubEnv("INSTABOX_API_KEY", "fixture-not-a-real-key");
   vi.stubEnv("INSTABOX_SANDBOX_ID", "fixture-not-a-real-vm");
   vi.stubEnv("VERCEL", "");
@@ -106,6 +107,26 @@ describe("website scan authorization", () => {
 });
 
 describe("persisted event transport and cancellation", () => {
+  it("closes an SSE response and stops polling when the browser disconnects", async () => {
+    const cookie = await browser();
+    const queued = await lab(request(cookie));
+    const { scanId } = await queued.json();
+    const aborter = new AbortController();
+    const streamRequest = new Request(`https://shipsafe.app/api/scans/${scanId}/stream`, {
+      method: "GET",
+      headers: { cookie },
+      signal: aborter.signal,
+    });
+    const response = await stream(streamRequest, context(scanId));
+    const reader = response.body!.getReader();
+    const connected = await reader.read();
+    expect(new TextDecoder().decode(connected.value)).toContain(": connected");
+    aborter.abort();
+    let result = await reader.read();
+    while (!result.done) result = await reader.read();
+    await reader.cancel();
+  });
+
   it("replays event IDs after Last-Event-ID and ends with the saved result", async () => {
     const cookie = await browser();
     const project = target(cookie);

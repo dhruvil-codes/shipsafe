@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { apiStore } from "./store";
+import { runtimeStore } from "./runtime-store";
 
 function ensureLocalEnvLoaded() {
   if (process.env.INSTABOX_API_KEY && process.env.INSTABOX_SANDBOX_ID) return;
@@ -36,7 +36,7 @@ function ensureLocalEnvLoaded() {
 
 ensureLocalEnvLoaded();
 
-export function executionReadiness() {
+export async function executionReadiness() {
   ensureLocalEnvLoaded();
   const hasInstaBoxCreds = Boolean(
     process.env.INSTABOX_API_KEY &&
@@ -44,20 +44,53 @@ export function executionReadiness() {
     !process.env.INSTABOX_API_KEY.startsWith("fixture-")
   );
   const isExplicitLocal = process.env.SHIPSAFE_RUNTIME === "local";
-  const configured = (hasInstaBoxCreds || isExplicitLocal) && apiStore.isPersistent() && !apiStore.hasCleanupFailure();
+  const isVercel = Boolean(process.env.VERCEL);
+  const deploymentIdAvailable = Boolean(process.env.VERCEL_DEPLOYMENT_ID);
+  const databaseConfigured = Boolean(process.env.DATABASE_URL || process.env.CLOUDFLARE_WORKER_URL);
+  const durableDispatchConfigured = process.env.SHIPSAFE_DURABLE_DISPATCH === "workflow";
+  let persistenceReady = false;
+  let cleanupFailure = false;
+  let storageCheckFailed = false;
+  try {
+    persistenceReady = await runtimeStore.isPersistent();
+    cleanupFailure = await runtimeStore.hasCleanupFailure();
+  } catch {
+    // Storage errors can include connection details. Readiness reports a stable
+    // blocker and never exposes the underlying error to the browser.
+    storageCheckFailed = true;
+  }
+  const localConfigured = (hasInstaBoxCreds || isExplicitLocal) && persistenceReady;
+  const productionConfigured = isVercel && databaseConfigured && durableDispatchConfigured && deploymentIdAvailable && hasInstaBoxCreds && persistenceReady;
+  const configured = !cleanupFailure && !storageCheckFailed && (isVercel ? productionConfigured : localConfigured);
   return {
     executionConfigured: configured,
-    labEnabled: configured,
+    labEnabled: configured && process.env.SHIPSAFE_LAB_ENABLED === "1",
     executionBlockers: configured
       ? []
-      : ["Scanning requires InstaBox credentials (INSTABOX_API_KEY, INSTABOX_SANDBOX_ID) in .env.local."],
+      : isVercel
+        ? [
+            ...(!databaseConfigured ? ["Scanning requires DATABASE_URL for durable production storage."] : []),
+            ...(!durableDispatchConfigured ? ["Scanning requires SHIPSAFE_DURABLE_DISPATCH=workflow for durable dispatch."] : []),
+            ...(!deploymentIdAvailable ? ["Scanning requires VERCEL_DEPLOYMENT_ID so durable workflow dispatch can identify this deployment."] : []),
+            ...(!hasInstaBoxCreds ? ["Scanning requires InstaBox credentials (INSTABOX_API_KEY, INSTABOX_SANDBOX_ID)."] : []),
+            ...(!persistenceReady ? ["Scanning requires the persistent database runtime store; temporary filesystem storage is not production-ready."] : []),
+            ...(storageCheckFailed ? ["Scanning cannot verify persistent storage readiness."] : []),
+            ...(cleanupFailure ? ["Scanning is blocked until the recorded cleanup failure is repaired."] : []),
+          ]
+        : [
+            ...(!isExplicitLocal ? ["Scanning requires explicit local runtime configuration."] : []),
+            ...(!hasInstaBoxCreds ? ["Scanning requires InstaBox credentials (INSTABOX_API_KEY, INSTABOX_SANDBOX_ID)."] : []),
+            ...(!persistenceReady ? ["Scanning requires persistent storage; in-memory storage is not durable."] : []),
+            ...(storageCheckFailed ? ["Scanning cannot verify persistent storage readiness."] : []),
+            ...(cleanupFailure ? ["Scanning is blocked until the recorded cleanup failure is repaired."] : []),
+          ],
   };
 }
 
-export function executionUnavailable() {
+export async function executionUnavailable() {
   return {
     error: "The scan worker is not configured for this runtime. No scan was run.",
     code: "EXECUTION_NOT_READY",
-    ...executionReadiness(),
+    ...await executionReadiness(),
   };
 }

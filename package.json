@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "db:migrate": "wrangler d1 execute shipsafe-db --remote --file=deploy/migrations/0001_init.sql",
     "scan:local": "bun scripts/local-scan.mjs",
     "dev": "bun --filter @shipsafe/web dev",
     "build": "bun --filter \"*\" build",

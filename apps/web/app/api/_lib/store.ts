@@ -84,7 +84,7 @@ function newId(prefix: string): string {
   return `${prefix}_${randomBytes(16).toString("hex")}`;
 }
 
-const snapshotSchema = z.object({
+export const snapshotSchema = z.object({
   version: z.literal(1),
   projects: z.array(z.object({ id: z.string(), name: z.string(), url: z.string(), environment: z.enum(["production", "staging", "development"]), securityAuthorization: SecurityAuthorizationSchema.optional(), securityAuthorizationRevision: z.number().int().nonnegative().optional(), verificationToken: z.string(), verifiedAt: z.string().nullable(), verificationExpiresAt: z.string().nullable(), createdAt: z.string() }).strict()),
   owners: z.array(z.tuple([z.string(), z.string()])),
@@ -109,6 +109,25 @@ export class ApiScanStore {
   private scans = new Map<string, ScanRecord>();
   private findings = new Map<string, FindingRecord[]>();
   private events = new Map<string, ScanEventRecord[]>();
+
+  /** Load a validated database snapshot without applying local-process restart rules. */
+  static fromSnapshot(value: unknown): ApiScanStore {
+    const state = snapshotSchema.parse(value);
+    const store = new ApiScanStore("");
+    store.initialized = true;
+    store.projects = new Map(state.projects.map(project => [project.id, project]));
+    store.owners = new Map(state.owners);
+    store.scans = new Map(state.scans.map(scan => [scan.id, scan]));
+    for (const finding of state.findings) store.findings.set(finding.scanId, [...(store.findings.get(finding.scanId) ?? []), finding]);
+    for (const event of state.events) store.events.set(event.scanId, [...(store.events.get(event.scanId) ?? []), event]);
+    return store;
+  }
+
+  /** Snapshot transactions reuse the same deterministic policy as the local store. */
+  exportSnapshot() {
+    this.initialize();
+    return snapshotSchema.parse({ version: 1, projects: [...this.projects.values()], owners: [...this.owners.entries()], scans: [...this.scans.values()], findings: [...this.findings.values()].flat(), events: [...this.events.values()].flat() });
+  }
 
   isPersistent(): boolean { return !!this.dataDirectory; }
 
@@ -211,6 +230,8 @@ export class ApiScanStore {
 
   createProject(owner: string, input: Pick<Project, "name" | "url" | "environment">): Project {
     this.initialize();
+    const existing = [...this.projects.values()].find(p => p.url === input.url && this.owners.get(p.id) === owner);
+    if (existing) return structuredClone(existing);
     const project: Project = {
       ...input,
       id: newId("prj"),

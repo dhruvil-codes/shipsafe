@@ -1,5 +1,5 @@
-import { apiStore } from "../../_lib/store";
-import { json, workspaceId } from "../../_lib/workspace";
+import { runtimeStore } from "../../_lib/runtime-store";
+import { json, serviceUnavailable, workspaceId } from "../../_lib/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,13 +18,12 @@ export async function GET(
   context: RouteContext,
 ): Promise<Response> {
   const { id } = await resolveParams(context);
-  const scan = apiStore.ownedScan(workspaceId(request), id);
-  if (!scan) {
-    return json({ error: "Scan not found" }, 404);
-  }
-  const findings = apiStore.listFindings(id);
-  const events = apiStore.listEvents(id);
-  return json({
+  try {
+    const scan = await runtimeStore.ownedScan(workspaceId(request), id);
+    if (!scan) return json({ error: "Scan not found" }, 404);
+    const findings = await runtimeStore.listFindings(id);
+    const events = await runtimeStore.listEvents(id);
+    return json({
     scan: {
       id: scan.id,
       projectId: scan.projectId,
@@ -39,5 +38,6 @@ export async function GET(
     },
     findings,
     events,
-  });
+    });
+  } catch { return serviceUnavailable(); }
 }

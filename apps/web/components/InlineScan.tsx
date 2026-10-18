@@ -224,10 +224,32 @@ export default function InlineScan() {
     setOpened(true); setScanId(""); setReport(null); setLines([]); setLiveEvents([]);
     seenEventIds.current.clear(); setFollowOutput(true); setConnection(authorizationId ? "Starting Deep Security Scan" : "Starting Standard Scan");
     try {
-      const result = await request<{ scanId: string }>("/api/scans", {
-        method: "POST",
-        body: JSON.stringify({ projectId: project.id, scopeAccepted: true, mode: authorizationId ? "deep" : "standard", ...(authorizationId ? { authorizationId } : {}) }),
-      });
+      let activeProject = project;
+      let result: { scanId: string };
+      try {
+        result = await request<{ scanId: string }>("/api/scans", {
+          method: "POST",
+          body: JSON.stringify({ projectId: activeProject.id, scopeAccepted: true, mode: authorizationId ? "deep" : "standard", ...(authorizationId ? { authorizationId } : {}) }),
+        });
+      } catch (err) {
+        if (message(err) === "Project not found") {
+          // Stale project ID or cookie reset: recreate project and retry once
+          let host = "target";
+          try { host = new URL(activeProject.url).hostname; } catch {}
+          const fresh = (await request<{ project: Project }>("/api/projects", {
+            method: "POST",
+            body: JSON.stringify({ name: host, url: activeProject.url, environment: "production" })
+          })).project;
+          activeProject = fresh;
+          setTarget(fresh);
+          result = await request<{ scanId: string }>("/api/scans", {
+            method: "POST",
+            body: JSON.stringify({ projectId: fresh.id, scopeAccepted: true, mode: authorizationId ? "deep" : "standard", ...(authorizationId ? { authorizationId } : {}) }),
+          });
+        } else {
+          throw err;
+        }
+      }
       if (!result.scanId) throw new Error("The scan service did not return a scan ID.");
       setConnection("Scan queued"); setScanId(result.scanId); void refreshTree();
     } catch (reason) { setError(message(reason)); setConnection("Scan not started"); }
@@ -246,8 +268,7 @@ export default function InlineScan() {
     setOpened(true); setBusy("Preparing target"); setScanId(""); setReport(null); setTarget(null);
     setConnection("Preparing target"); setLines([]); setLiveEvents([]); seenEventIds.current.clear();
     try {
-      const existing = targets.find(item => item.url === parsed.url);
-      const next = existing ?? (await request<{ project: Project }>("/api/projects", { method: "POST", body: JSON.stringify({ name: parsed.hostname, url: parsed.url, environment: "production" }) })).project;
+      const next = (await request<{ project: Project }>("/api/projects", { method: "POST", body: JSON.stringify({ name: parsed.hostname, url: parsed.url, environment: "production" }) })).project;
       setTarget(next); setValue(next.url);
       setDeepProject(null); await startWebsiteScan(next, true);
     } catch (reason) { setError(message(reason)); setConnection("Setup failed"); }

@@ -8,16 +8,11 @@
     {
       "binding": "DB",
       "database_name": "shipsafe-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "22811586-f691-4224-bf20-115f72a7f23d",
       "migrations_dir": "deploy/migrations"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "REPORTS_BUCKET",
-      "bucket_name": "shipsafe-reports"
-    }
-  ],
+
   "vars": {
     "ENVIRONMENT": "production",
     "RATE_LIMIT_PER_IP_MINUTE": "15",

@@ -115,6 +115,39 @@ export default {
       return json(metrics);
     }
 
+    // Shared D1 State Store (Authenticated)
+    if (path === "/api/state") {
+      if (!verifyVmAuth(request, env)) {
+        return json({ error: "Unauthorized state access", code: "UNAUTHORIZED" }, 401);
+      }
+      if (method === "GET") {
+        const row = await env.DB.prepare("SELECT value, revision FROM shipsafe_runtime_state WHERE id=1").first<{ value: string; revision: number }>();
+        if (!row) return json({ error: "State row not found" }, 404);
+        return json({ value: JSON.parse(row.value), revision: row.revision });
+      }
+      if (method === "POST") {
+        let body: any = {};
+        try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+        const { value, expectedRevision } = body;
+        if (!value) return json({ error: "Missing value" }, 400);
+        if (typeof expectedRevision === "number") {
+          const res = await env.DB.prepare("UPDATE shipsafe_runtime_state SET value = ?, revision = revision + 1 WHERE id = 1 AND revision = ?")
+            .bind(JSON.stringify(value), expectedRevision)
+            .run();
+          if (res.meta.changes === 0) {
+            const current = await env.DB.prepare("SELECT revision FROM shipsafe_runtime_state WHERE id=1").first<{ revision: number }>();
+            return json({ conflict: true, currentRevision: current?.revision }, 409);
+          }
+          return json({ ok: true, revision: expectedRevision + 1 });
+        } else {
+          await env.DB.prepare("UPDATE shipsafe_runtime_state SET value = ?, revision = revision + 1 WHERE id = 1")
+            .bind(JSON.stringify(value))
+            .run();
+          return json({ ok: true });
+        }
+      }
+    }
+
     // ==========================================
     // 1. VM WORKER PULL API (AUTHENTICATED)
     // ==========================================

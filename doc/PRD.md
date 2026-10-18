@@ -1,3 +1,7 @@
+# Owner-directed Vercel production revision (2026-10-17)
+
+The owner selected Vercel with a shared PostgreSQL database and durable job dispatch. The implementation uses a dedicated Neon project, transactional admission/outbox state, database worker leases, and Vercel Workflows. InstaBox remains credential-free, backend-driven scan compute with mandatory per-job cleanup. This supersedes earlier Cloudflare-only hosting and local-file-only execution notes for configured production. Deployment and live validation must be reported separately from code/test completion. Setup and recovery: [VERCEL-PRODUCTION.md](VERCEL-PRODUCTION.md).
+
 # ShipSafe — Product Requirements Document
 
 _Security testing for apps built at AI speed._
