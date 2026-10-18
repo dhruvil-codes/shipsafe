@@ -13,7 +13,7 @@ export function workspaceId(request: Request): string | undefined {
   if (!value || !/^[a-f0-9]{64}$/.test(value)) return undefined;
   // In production the cookie is a bearer capability whose ownership is checked
   // by every project and scan query in the persistent runtime store.
-  if (process.env.VERCEL) return process.env.DATABASE_URL ? value : undefined;
+  if (process.env.VERCEL) return (process.env.DATABASE_URL || process.env.CLOUDFLARE_WORKER_URL) ? value : undefined;
   return workspaces.has(value) || apiStore.hasOwner(value) ? value : undefined;
 }
 

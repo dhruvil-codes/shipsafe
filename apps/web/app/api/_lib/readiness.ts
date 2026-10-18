@@ -60,7 +60,7 @@ export async function executionReadiness() {
     storageCheckFailed = true;
   }
   const localConfigured = (hasInstaBoxCreds || isExplicitLocal) && persistenceReady;
-  const productionConfigured = isVercel && databaseConfigured && durableDispatchConfigured && deploymentIdAvailable && hasInstaBoxCreds && persistenceReady;
+  const productionConfigured = isVercel && databaseConfigured && (Boolean(process.env.CLOUDFLARE_WORKER_URL) || (durableDispatchConfigured && deploymentIdAvailable)) && hasInstaBoxCreds && persistenceReady;
   const configured = !cleanupFailure && !storageCheckFailed && (isVercel ? productionConfigured : localConfigured);
   return {
     executionConfigured: configured,
@@ -70,8 +70,8 @@ export async function executionReadiness() {
       : isVercel
         ? [
             ...(!databaseConfigured ? ["Scanning requires DATABASE_URL for durable production storage."] : []),
-            ...(!durableDispatchConfigured ? ["Scanning requires SHIPSAFE_DURABLE_DISPATCH=workflow for durable dispatch."] : []),
-            ...(!deploymentIdAvailable ? ["Scanning requires VERCEL_DEPLOYMENT_ID so durable workflow dispatch can identify this deployment."] : []),
+            ...(!durableDispatchConfigured && !process.env.CLOUDFLARE_WORKER_URL ? ["Scanning requires SHIPSAFE_DURABLE_DISPATCH=workflow for durable dispatch."] : []),
+            ...(!deploymentIdAvailable && !process.env.CLOUDFLARE_WORKER_URL ? ["Scanning requires VERCEL_DEPLOYMENT_ID so durable workflow dispatch can identify this deployment."] : []),
             ...(!hasInstaBoxCreds ? ["Scanning requires InstaBox credentials (INSTABOX_API_KEY, INSTABOX_SANDBOX_ID)."] : []),
             ...(!persistenceReady ? ["Scanning requires the persistent database runtime store; temporary filesystem storage is not production-ready."] : []),
             ...(storageCheckFailed ? ["Scanning cannot verify persistent storage readiness."] : []),
