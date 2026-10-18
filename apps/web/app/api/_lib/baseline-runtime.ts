@@ -237,7 +237,7 @@ async function executeClaimedScan(scan: ScanRecord, controller: AbortController)
     const completionMessage = scopeLimited
       ? `${stopReason.success ? failureCopy[stopReason.data] : "The submitted hostname returned a redirect that ShipSafe did not follow."} A partial report of that hostname's redirect response was saved. The redirect destination was not contacted; no baseline score was assigned.`
       : "Report generated and saved. Coverage applies only to the baseline profile; deeper application controls were not tested.";
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL || process.env.CLOUDFLARE_WORKER_URL) {
       await runtimeStore.completeExecution(scan.id, completionPatch, report.findings.map(finding => ({ ...finding, scanId: scan.id })), completionMessage);
     } else {
       for (const finding of report.findings) await runtimeStore.addFinding({ ...finding, scanId: scan.id });

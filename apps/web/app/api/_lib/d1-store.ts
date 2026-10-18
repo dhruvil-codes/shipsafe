@@ -169,6 +169,10 @@ export class D1ScanStore {
     return this.transaction(store => store.addEvent(event));
   }
 
+  async addFinding(finding: Parameters<ApiScanStore["addFinding"]>[0]) {
+    return this.transaction(store => store.addFinding(finding));
+  }
+
   async listEvents(id: string) { return this.read(store => store.listEvents(id)); }
   async listFindings(id: string) { return this.read(store => store.listFindings(id)); }
 }

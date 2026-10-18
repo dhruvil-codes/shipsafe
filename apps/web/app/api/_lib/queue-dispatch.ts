@@ -18,11 +18,21 @@ function durableDispatchEnabled(): boolean {
     && process.env.SHIPSAFE_DURABLE_DISPATCH === "workflow";
 }
 
-/** Start durable runs for queued scans, with a DB reservation preventing request fan-out. */
+import { after } from "next/server";
+
 export async function dispatchQueue(): Promise<void> {
   if (process.env.CLOUDFLARE_WORKER_URL || !process.env.VERCEL) {
-    // Direct worker queue execution against InstaBox VM
-    void kickQueue();
+    try {
+      if (process.env.VERCEL) {
+        after(async () => {
+          await kickQueue();
+        });
+      } else {
+        void kickQueue();
+      }
+    } catch {
+      void kickQueue();
+    }
     return;
   }
 
