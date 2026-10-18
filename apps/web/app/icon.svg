@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#0a0a0f" />
+  <rect width="30" height="30" x="1" y="1" rx="7" fill="none" stroke="#2a2a3e" stroke-width="1" />
+  <!-- Security Shield -->
+  <path d="M16 5.5 L24 8.5 V14.5 C24 19.8 20.6 24.6 16 26.5 C11.4 24.6 8 19.8 8 14.5 V8.5 Z" fill="url(#shieldGrad)" />
+  <!-- Verified Checkmark -->
+  <path d="M12.5 15.5 L15 18 L19.5 13" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
