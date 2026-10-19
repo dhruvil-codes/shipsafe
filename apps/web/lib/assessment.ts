@@ -4,7 +4,7 @@ import type { BaselineScore } from "./baseline-score";
 export const SEVERITIES = ["critical", "high", "medium", "low", "info"] as const;
 export type SeverityFilter = "all" | typeof SEVERITIES[number];
 export interface Assessment {
-  scan: { id: string; projectId: string; projectName: string; url: string; status: string; score: number | null; coverage: number | null; createdAt: string | null; mode?: "lab" | "website" | "standard" | "deep"; authorizationId?: string; reportManifest?: Record<string, unknown> };
+  scan: { id: string; projectId: string; projectName: string; url: string; status: string; score: number | null; coverage: number | null; createdAt: string | null; completedAt?: string | null; mode?: "lab" | "website" | "standard" | "deep"; authorizationId?: string; reportManifest?: Record<string, unknown> };
   findings: ApiFindingRecord[];
   events: { id: string; scanId: string; stage: string; message: string; timestamp: string; checkId?: string; status?: "passed" | "observation" | "skipped" }[];
   archived?: boolean;

@@ -5,6 +5,7 @@ import ipaddress
 import re
 import shlex
 import subprocess
+import threading
 import time
 
 DIG = "/usr/bin/dig"
@@ -123,21 +124,35 @@ def _observe(check, records):
     return "PASS", "Direct DMARC declaration contains a quarantine or reject policy tag. Alignment, reporting and inherited policy were not evaluated."
 
 
+_dns_emit_lock = threading.Lock()
+
+
 def observe_dns(hostname, deadline, grant_check=lambda: None, emit=None):
-    """At most two fixed dig processes share the collector's monotonic deadline."""
+    """Direct DNS observations run concurrently; at most 4 dig processes share the deadline."""
     if not isinstance(hostname, str) or not re.fullmatch(r"(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+", hostname) or any(len(part) > 63 for part in hostname.split(".")):
         return {key: ("NOT_TESTED", "Unsupported DNS hostname; no DNS command executed.") for key in CHECKS}
+    grant_check()
+    if time.monotonic() >= deadline:
+        return {key: ("NOT_TESTED", "DNS observation deadline expired.") for key in CHECKS}
     jobs = (("dns-caa", hostname, "CAA"), ("dns-spf", hostname, "TXT"), ("dns-dmarc", "_dmarc." + hostname, "TXT"), ("dns-mx", hostname, "MX"))
     def run_one(check, host, kind):
         if emit:
-            emit({"type": "stage", "stage": "check", "checkId": check, "message": "Evaluating " + TITLES[check] + "...", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
-        result = _observe(check, _query(host, kind, deadline, grant_check))
+            with _dns_emit_lock:
+                emit({"type": "stage", "stage": "check", "checkId": check, "message": "Evaluating " + TITLES[check] + "...", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
+        res = _observe(check, _query(host, kind, deadline, grant_check))
         if emit:
-            status = {"PASS": "passed", "WARNING": "observation", "NOT_TESTED": "skipped"}.get(result[0], "skipped")
-            emit({"type": "stage", "stage": "check_done", "checkId": check, "status": status, "message": "[" + status.upper() + "] " + TITLES[check] + " — " + result[1], "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
-        return result
+            status = {"PASS": "passed", "WARNING": "observation", "NOT_TESTED": "skipped"}.get(res[0], "skipped")
+            with _dns_emit_lock:
+                emit({"type": "stage", "stage": "check_done", "checkId": check, "status": status, "message": "[" + status.upper() + "] " + TITLES[check] + " — " + res[1], "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")})
+        return res
     result = {}
-    for key, host, kind in jobs:
-        result[key] = run_one(key, host, kind)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        future_map = {executor.submit(run_one, key, host, kind): key for key, host, kind in jobs}
+        for future in concurrent.futures.as_completed(future_map):
+            key = future_map[future]
+            try:
+                result[key] = future.result()
+            except Exception:
+                result[key] = ("NOT_TESTED", "DNS observation failed.")
     grant_check()
     return result

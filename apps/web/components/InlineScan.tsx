@@ -70,6 +70,8 @@ export default function InlineScan() {
   const [connection, setConnection] = useState("Not started");
   const [revision, setRevision] = useState(0);
   const [followOutput, setFollowOutput] = useState(true);
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const panel = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const output = useRef<HTMLDivElement>(null);
@@ -78,6 +80,17 @@ export default function InlineScan() {
   const seenEventIds = useRef(new Set<string>());
   const loadedScanId = useRef("");
   const active = Boolean((scanId && !report && connection !== "Unavailable") || (report && !isTerminal(report.scan.status)));
+
+  useEffect(() => {
+    if (!active) return;
+    const start = scanStartTime ?? Date.now();
+    if (scanStartTime === null) setScanStartTime(start);
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.max(0, (Date.now() - start) / 1000));
+    }, 100);
+    return () => clearInterval(interval);
+  }, [active, scanStartTime]);
+
   const alignPanel = useCallback(() => {
     if (!panel.current) return;
     const top = panel.current.getBoundingClientRect().top + window.scrollY - 80;
@@ -211,6 +224,7 @@ export default function InlineScan() {
   function selectTarget(next: Project) {
     sourceRef.current?.close(); setScanId(""); setReport(null); setTarget(next);
     setDeepProject(null);
+    setScanStartTime(null); setElapsedSeconds(0);
     const isLab = next.url.includes("fixture.invalid");
     if (!isLab) setValue(next.url);
     setError(""); setInputError(""); setOpened(true); setFollowOutput(true);
@@ -222,6 +236,7 @@ export default function InlineScan() {
     if ((!alreadyBusy && busy) || active) return;
     setBusy("Starting scan"); setError(""); setTarget(project); setValue(project.url);
     setOpened(true); setScanId(""); setReport(null); setLines([]); setLiveEvents([]);
+    setScanStartTime(Date.now()); setElapsedSeconds(0);
     seenEventIds.current.clear(); setFollowOutput(true); setConnection(authorizationId ? "Starting Deep Security Scan" : "Starting Standard Scan");
     try {
       let activeProject = project;
@@ -323,6 +338,24 @@ export default function InlineScan() {
   const filteredFindings = report ? filterFindings(report.findings, severityFilter) : [];
   const filteredChecks = checkFilter === "all" ? checks : checks.filter(c => c.status === checkFilter);
 
+  const formatTimer = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const s = (sec % 60).toFixed(1);
+    return `${String(mins).padStart(2, "0")}:${s.padStart(4, "0")}s`;
+  };
+
+  const completedDuration = (report?.scan.completedAt && report?.scan.createdAt)
+    ? Math.max(0, (new Date(report.scan.completedAt).getTime() - new Date(report.scan.createdAt).getTime()) / 1000)
+    : null;
+
+  const durationText = active
+    ? formatTimer(elapsedSeconds)
+    : completedDuration !== null
+      ? `${completedDuration.toFixed(1)}s`
+      : elapsedSeconds > 0
+        ? `${elapsedSeconds.toFixed(1)}s`
+        : "";
+
   return <div id="scan" className="inline-scan">
     <form className="ora-scan" onSubmit={submit} noValidate>
       <label className="sr-only" htmlFor="scan-url">Website URL</label>
@@ -338,11 +371,23 @@ export default function InlineScan() {
           <h2>{isLab ? "ShipSafe Private Lab" : target ? hostname : report ? new URL(report.scan.url).hostname : "Preparing assessment"}</h2>
           {isLab && <p className="small muted" style={{ margin: "4px 0 0" }}>Owned synthetic hardening fixture on InstaBox · Zero external networking</p>}
         </div>
-        <Badge tone={active ? "info" : report ? "neutral" : "warning"}>{(busy || active || /queued|connecting|receiving|reconnecting/i.test(connection)) && <span className="scan-status-pulse" aria-hidden="true" />}{report?.scan.status ?? connection}</Badge>
+        <Badge tone={active ? "info" : report ? "neutral" : "warning"}>
+          {(busy || active || /queued|connecting|receiving|reconnecting/i.test(connection)) && <span className="scan-status-pulse" aria-hidden="true" />}
+          {active && durationText
+            ? `${report?.scan.status ?? connection} · ${durationText}`
+            : report && isTerminal(report.scan.status) && durationText
+              ? `${report.scan.status} · ${durationText}`
+              : (report?.scan.status ?? connection)}
+        </Badge>
       </header>
       <div className="session-grid">
         <div className="session-output">
-          <div className="output-heading"><h3><TerminalSquare size={18} aria-hidden="true" /> Scan terminal</h3><span className="small" role="status">{connection}</span></div>
+          <div className="output-heading">
+            <h3><TerminalSquare size={18} aria-hidden="true" /> Scan terminal</h3>
+            <span className="small" role="status">
+              {active && durationText ? `${connection} (${durationText})` : connection}
+            </span>
+          </div>
           <div ref={output} className="scan-output-scroll" onScroll={event => { const el = event.currentTarget; setFollowOutput(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }} role="log" aria-label="Scan output" aria-live="polite" aria-relevant="additions text" tabIndex={0}>
             <Terminal className="scan-magic-terminal" sequence={false} startOnView={false} windowControls={false}>
               {isStaging && STAGING_STEPS.slice(0, stagingIndex + 1).map((step, index) => <span className="scan-terminal-line" key={`stage-${index}`}>{step}</span>)}
@@ -360,7 +405,7 @@ export default function InlineScan() {
       {error && <p className="notice error-notice" role="alert">{error}</p>}
       {active && <div className="scan-live-progress" role="status" aria-live="polite">
         <span className="scan-progress-spinner" aria-hidden="true" />
-        <span>{checksEvaluated ? `Analyzing security controls (${checksEvaluated}/55 checks evaluated)…` : "Connecting to InstaBox sandbox & initializing scanner…"}</span>
+        <span>{checksEvaluated ? `Analyzing security controls (${checksEvaluated}/55 checks evaluated) · ${durationText}` : `Connecting to InstaBox sandbox & initializing scanner… · ${durationText}`}</span>
         <div className="scan-progress-bar"><div className="scan-progress-fill" style={{ width: `${Math.min(100, Math.max(8, (checksEvaluated / 55) * 100))}%` }} /></div>
       </div>}
       {report && isTerminal(report.scan.status) && <section className="inline-results stack" aria-label="Recorded results">
@@ -405,6 +450,7 @@ export default function InlineScan() {
             <p className="muted">
               {baselineScore && resolvedScore !== null ? `Grade ${baselineScore.grade} · ` : ""}
               {report.scan.status} · {report.scan.createdAt ? `Started ${new Date(report.scan.createdAt).toLocaleString()}` : "Start time unavailable"}
+              {durationText ? ` · Duration: ${durationText}` : ""}
             </p>
           </section>
           <section className="panel stack coverage-panel">

@@ -42,5 +42,5 @@ describe("Cloudflare D1 live integration", () => {
     await store.completeExecution(scan.id, { score: 100, coverage: 100 }, [], "Integration test completed.");
     const completed = await store.getScan(scan.id);
     expect(completed?.status).toBe("COMPLETED");
-  });
+  }, 30000);
 });

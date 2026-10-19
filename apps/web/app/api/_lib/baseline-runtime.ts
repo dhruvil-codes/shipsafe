@@ -76,14 +76,18 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
   let finished = false;
   try {
     await requireCurrentAuthorization();
-    await exec(vm, python(`import os,time,re,shutil\nfor name in os.listdir('/tmp'):\n if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue\n p='/tmp/'+name\n if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue\n try:\n  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()\n  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue\n except (FileNotFoundError,ProcessLookupError): pass\n shutil.rmtree(p)\nos.mkdir(${JSON.stringify(directory)},0o700)`));
+    const checkShared = await exec(vm, python(`import os,time,re,shutil\nfor name in os.listdir('/tmp'):\n if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue\n p='/tmp/'+name\n if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue\n try:\n  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()\n  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue\n except (FileNotFoundError,ProcessLookupError): pass\n shutil.rmtree(p)\nos.mkdir(${JSON.stringify(directory)},0o700)\nprint('READY' if os.path.exists('/tmp/shipsafe-shared-v3/security_engine.py') else 'NEED_SEED')`));
     prepared = true;
-    await vm.files.write(`${directory}/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
-    if (securityMode) {
-      for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
-        await vm.files.write(`${directory}/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
+    if (!checkShared.includes("READY")) {
+      await exec(vm, python(`import os\nos.makedirs('/tmp/shipsafe-shared-v3', exist_ok=True)`));
+      await vm.files.write(`/tmp/shipsafe-shared-v3/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
+      if (securityMode) {
+        for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
+          await vm.files.write(`/tmp/shipsafe-shared-v3/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
+        }
       }
     }
+    await exec(vm, python(`import os,shutil\ns='/tmp/shipsafe-shared-v3'\nd=${JSON.stringify(directory)}\nfor f in os.listdir(s):\n src=os.path.join(s,f); dst=os.path.join(d,f)\n try: os.symlink(src,dst)\n except: shutil.copy2(src,dst)`));
     await vm.files.write(`${directory}/input.json`, JSON.stringify({ mode: scan.mode ?? "website", url: scan.mode === "lab" ? "https://fixture.invalid/" : scan.url, ...(authorization ? { authorization: { hostname: authorization.hostname, expiresAt: authorization.expiresAt, classes: authorization.classes } } : {}) }));
     await requireCurrentAuthorization();
     const args = scan.mode === "lab"
@@ -155,7 +159,7 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
         }
       }
       if (finished) break;
-      await new Promise(resolve => setTimeout(resolve, 750));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     if (!report) throw new Error("Scanner deadline reached without a validated report");
     return report;

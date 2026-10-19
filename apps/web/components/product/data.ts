@@ -36,6 +36,7 @@ export interface ScanRecord {
   score?: number;
   coverage?: number;
   createdAt: string;
+  completedAt?: string | null;
 }
 
 export interface Workspace {

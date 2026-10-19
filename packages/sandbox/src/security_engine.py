@@ -110,18 +110,20 @@ class Collector(baseline.Collector):
         self.grant = grant
         self.paths = {urlsplit(url).path or "/", *METADATA_PATHS.values()}
         self.resolution_count = 0
-        self.public_dns_reported = False
+        self.lock = threading.Lock()
 
     def approve(self, url):
         candidate = baseline.validate_url(url)
         if urlsplit(candidate).hostname not in baseline.site_aliases(self.hostname):
             raise baseline.ScopeError("Exact host required", "REDIRECT_HOST")
-        self.paths.add(urlsplit(candidate).path)
+        with self.lock:
+            self.paths.add(urlsplit(candidate).path)
         return candidate
 
     def resolve(self, host, port):
-        report = not self.public_dns_reported
-        self.public_dns_reported = True
+        with self.lock:
+            report = not self.public_dns_reported
+            self.public_dns_reported = True
         if report:
             emit_check_start(self.emit, "dns-public", "Anti-SSRF public IP resolution and address pinning")
         try:
@@ -130,7 +132,8 @@ class Collector(baseline.Collector):
             if report:
                 emit_check_done(self.emit, "dns-public", "Anti-SSRF public IP resolution and address pinning", "NOT_TESTED", "Public address validation did not complete; request stopped before connection")
             raise
-        self.resolution_count += 1
+        with self.lock:
+            self.resolution_count += 1
         if report:
             emit_check_done(self.emit, "dns-public", "Anti-SSRF public IP resolution and address pinning", "PASS", "All connection DNS answers validated as public and selected address pinned")
         return result
@@ -138,7 +141,9 @@ class Collector(baseline.Collector):
     def request(self, url, origin=False):
         normalized = baseline.validate_url(url)
         parsed = urlsplit(normalized)
-        if parsed.hostname not in baseline.site_aliases(self.hostname) or parsed.path not in self.paths:
+        with self.lock:
+            valid_path = parsed.path in self.paths
+        if parsed.hostname not in baseline.site_aliases(self.hostname) or not valid_path:
             raise baseline.ScopeError("Unapproved request", "REQUEST_SCOPE")
         if self.mode == "deep":
             classes = grant_valid(self.grant, self.hostname)
@@ -146,8 +151,9 @@ class Collector(baseline.Collector):
                 raise baseline.ScopeError("CORS class not authorized", "AUTHORIZATION_CLASSES")
         elif origin:
             raise baseline.ScopeError("Origin probes require Deep authorization", "AUTHORIZATION_REQUIRED")
-        if self.count >= MAX_REQUESTS or time.monotonic() >= self.deadline:
-            raise TimeoutError("Shared resource budget exhausted")
+        with self.lock:
+            if self.count >= MAX_REQUESTS or time.monotonic() >= self.deadline:
+                raise TimeoutError("Shared resource budget exhausted")
         # Transport implementation mirrors baseline, retaining DNS pinning and bounds.
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         addresses = self.resolve(parsed.hostname, port)
@@ -155,8 +161,10 @@ class Collector(baseline.Collector):
             grant_valid(self.grant, self.hostname)
         if time.monotonic() >= self.deadline:
             raise TimeoutError("Shared time budget exhausted")
-        self.count += 1
-        self.emit({"type": "stage", "stage": "request", "message": "Reading approved host response", "request": self.count})
+        with self.lock:
+            self.count += 1
+            request_num = self.count
+        self.emit({"type": "stage", "stage": "request", "message": "Reading approved host response", "request": request_num})
         connection = baseline.PinnedHTTP(parsed.hostname, port, addresses, min(5, max(.01, self.deadline - time.monotonic())), parsed.scheme == "https")
         try:
             headers = {"User-Agent": "ShipSafe-Security/" + VERSION, "Accept": "text/html,*/*;q=0.5", "Accept-Encoding": "identity", "Connection": "close"}
@@ -352,18 +360,28 @@ def run(config, emit):
     observed["dns-public"] = ("PASS", "All connection DNS answers validated as public and selected address pinned")
     if not stop:
         observed.update(observe_dns(host, collector.deadline, lambda: grant_valid(grant, host) if mode == "deep" else None, emit))
-        for id_, path in METADATA_PATHS.items():
+        def run_one_meta(id_, path):
             title = next(item["title"] for item in REGISTRY if item["id"] == id_)
             emit_check_start(emit, id_, title)
+            res_status, res_ev = "NOT_TESTED", "Metadata request could not complete within approved bounds"
             try:
                 metadata_url = urlsplit(final_url)._replace(path=path).geturl()
                 metadata = collector.request(metadata_url)
                 available = not any(k.lower() == "content-encoding" and v.lower().strip() not in ("", "identity") for k, v in metadata["headers"])
                 valid = available and metadata["status"] == 200 and bool(re.search({"security-txt": rb"(?im)^Contact:\s*\S+", "robots-txt": rb"(?im)^User-agent:\s*\S+", "sitemap-xml": rb"<(?:\w+:)?(?:urlset|sitemapindex)(?:\s|>)"}[id_], metadata["body"]))
-                observed[id_] = ("PASS" if valid else "WARNING" if available and metadata["status"] in (200, 404, 410) else "NOT_TESTED", "Expected public metadata marker observed; values and linked URLs omitted" if valid else "Expected public metadata marker not established; no URLs followed")
+                res_status = "PASS" if valid else "WARNING" if available and metadata["status"] in (200, 404, 410) else "NOT_TESTED"
+                res_ev = "Expected public metadata marker observed; values and linked URLs omitted" if valid else "Expected public metadata marker not established; no URLs followed"
             except (OSError, TimeoutError, baseline.ScopeError):
-                observed[id_] = ("NOT_TESTED", "Metadata request could not complete within approved bounds")
-            emit_check_done(emit, id_, title, observed[id_][0], observed[id_][1])
+                pass
+            emit_check_done(emit, id_, title, res_status, res_ev)
+            return id_, (res_status, res_ev)
+
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as meta_executor:
+            meta_futures = [meta_executor.submit(run_one_meta, id_, path) for id_, path in METADATA_PATHS.items()]
+            for future in concurrent.futures.as_completed(meta_futures):
+                id_, result_tuple = future.result()
+                observed[id_] = result_tuple
         html = "text/html" in dict((k.lower(), v) for k, v in response["headers"]).get("content-type", "").lower()
         emit_check_start(emit, "source-map", "Explicit same-host source map reference")
         source = re.search(r"[#@]\s*sourceMappingURL\s*=\s*([^\s<>\"']+)", response["body"].decode("utf-8", "replace")) if html and body_available else None
