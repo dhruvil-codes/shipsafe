@@ -111,6 +111,7 @@ class Collector(baseline.Collector):
         self.paths = {urlsplit(url).path or "/", *METADATA_PATHS.values()}
         self.resolution_count = 0
         self.lock = threading.Lock()
+        self.public_dns_reported = False
 
     def approve(self, url):
         candidate = baseline.validate_url(url)
