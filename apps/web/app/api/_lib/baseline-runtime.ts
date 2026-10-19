@@ -250,7 +250,7 @@ except (FileNotFoundError,ProcessLookupError): pass
 r=subprocess.run(['docker','rm','-f',${JSON.stringify(container)}],capture_output=True,timeout=10)
 left=subprocess.run(['docker','ps','-aq','--filter','name=^/'+${JSON.stringify(container)}+'$'],capture_output=True,text=True,timeout=10)
 if left.returncode or left.stdout.strip(): raise RuntimeError('Container cleanup was not verified')
-shutil.rmtree(d)`), 30000); }
+if os.path.exists(d): shutil.rmtree(d)`), 30000); }
       catch { throw new CleanupError("Job cleanup could not be verified"); }
       await emit("CLEANUP", "Temporary job files and any lab container were removed; the shared VM remains available.");
     }
