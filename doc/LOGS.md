@@ -437,3 +437,13 @@
 - Created `apps/web/app/api/_lib/d1-store.ts` connecting the Next.js runtime store directly to Cloudflare D1. In-memory project deduplication and automatic retry were added to `InlineScan.tsx` to prevent `Project not found` 404s.
 - Validation: all 173 Vitest tests passed, including the live D1 integration test (`app/api/_lib/d1-store.integration.test.ts`), Next.js production build succeeded with code 0, and changes were pushed to `origin/main` (`774c8fa`).
 
+## 45. Scan performance optimization: Sub-15-second execution via D1 event batching and content-hashed VM caching [2026-10-19]
+- Identified the 55-second bottleneck:
+  1. The security engine executed in only 2.3 seconds on the InstaBox VM, but the Next.js runtime emitted ~83 scan events sequentially to Cloudflare D1 via individual transactions. Each transaction required 2 remote HTTP roundtrips (`fetchState` + `updateState`), accumulating 166 roundtrips (~45–50s overhead).
+  2. The shared VM code directory was statically named (`/tmp/shipsafe-shared-v3`), causing code optimizations to be bypassed when a previous cache was present on the VM.
+- Implemented `addEvents` batch method on `ApiScanStore` and `D1ScanStore`, collapsing 83 individual HTTP transactions into a single atomic transaction (2 HTTP requests total).
+- Updated `baseline-runtime.ts` to accumulate chunk events into a batch and flush them in one call via `addEvents`.
+- Added short 250ms read memoization (`cachedRead`) to `D1ScanStore` to eliminate redundant HTTP GETs during SSE stream ticks.
+- Implemented SHA-256 content hashing for runner sources (`/tmp/shipsafe-shared-${engineHash}`) so code updates on the host automatically invalidate and refresh the VM cache.
+- Validation: all 173 Vitest tests passing, 0 TypeScript errors, engine VM execution benchmarked at 2.378s for all 55 checks on `https://bydhruvil.in/`.
+
