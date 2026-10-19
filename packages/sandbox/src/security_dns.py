@@ -8,6 +8,11 @@ import subprocess
 import threading
 import time
 
+try:
+    threading.stack_size(256 * 1024)
+except Exception:
+    pass
+
 DIG = "/usr/bin/dig"
 MAX_OUTPUT = 65536
 CHECKS = ("dns-caa", "dns-spf", "dns-dmarc", "dns-mx")

@@ -9,8 +9,14 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin, urlsplit
+
+try:
+    threading.stack_size(256 * 1024)
+except Exception:
+    pass
 
 import baseline
 from security_registry import REGISTRY, VERSION, IMPLEMENTED, DEFERRED_IDS
@@ -535,6 +541,7 @@ def main():
         emit(run(config, emit))
         return 0
     except Exception as exc:
+        traceback.print_exc(file=sys.stderr)
         error = {"type": "error", "code": "SCOPE_REJECTED" if isinstance(exc, baseline.ScopeError) else "SECURITY_FAILED", "message": "Assessment could not complete within approved scope and limits"}
         if isinstance(exc, baseline.ScopeError):
             error["reason"] = exc.reason

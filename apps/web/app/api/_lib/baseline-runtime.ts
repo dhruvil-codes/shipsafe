@@ -98,6 +98,10 @@ export async function runBaseline(
       .digest("hex").slice(0, 10);
     const sharedDir = `/tmp/shipsafe-shared-${engineHash}`;
 
+    const requiredFiles = securityMode
+      ? ["baseline.py", "security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]
+      : ["baseline.py"];
+
     await requireCurrentAuthorization();
     const checkShared = await exec(vm, python(`import os,time,re,shutil
 for name in os.listdir('/tmp'):
@@ -109,23 +113,33 @@ for name in os.listdir('/tmp'):
   if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue
  except (FileNotFoundError,ProcessLookupError): pass
  shutil.rmtree(p)
-os.mkdir(${JSON.stringify(directory)},0o700)
-print('READY' if os.path.exists(${JSON.stringify(sharedDir + '/security_engine.py')}) else 'NEED_SEED')`));
-    prepared = true;
+d=${JSON.stringify(directory)}
+if not os.path.exists(d): os.makedirs(d, mode=0o700, exist_ok=True)
+s=${JSON.stringify(sharedDir)}
+req=${JSON.stringify(requiredFiles)}
+all_present=os.path.isdir(s) and all(os.path.isfile(os.path.join(s,f)) and os.path.getsize(os.path.join(s,f))>0 for f in req)
+print('READY' if all_present else 'NEED_SEED')`));
     if (!checkShared.includes("READY")) {
+      const stagingDir = `${sharedDir}-staging-${Date.now()}`;
       await exec(vm, python(`import os,shutil
-d=${JSON.stringify(sharedDir)}
-os.makedirs(d, exist_ok=True)
-for name in os.listdir('/tmp'):
- if (name.startswith('shipsafe-shared-') or name.startswith('shipsafe-shared-v')) and name != os.path.basename(d):
-  try: shutil.rmtree('/tmp/' + name)
-  except: pass`));
-      await vm.files.write(`${sharedDir}/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
+s=${JSON.stringify(stagingDir)}
+if os.path.exists(s): shutil.rmtree(s)
+os.makedirs(s, mode=0o700, exist_ok=True)`));
+      await vm.files.write(`${stagingDir}/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
       if (securityMode) {
         for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
-          await vm.files.write(`${sharedDir}/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
+          await vm.files.write(`${stagingDir}/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
         }
       }
+      await exec(vm, python(`import os,shutil
+s=${JSON.stringify(stagingDir)}
+t=${JSON.stringify(sharedDir)}
+if os.path.exists(t): shutil.rmtree(t)
+os.rename(s, t)
+for name in os.listdir('/tmp'):
+ if (name.startswith('shipsafe-shared-') or name.startswith('shipsafe-shared-v')) and name != os.path.basename(t):
+  try: shutil.rmtree('/tmp/' + name)
+  except: pass`));
     }
     await exec(vm, python(`import os,shutil
 s=${JSON.stringify(sharedDir)}
@@ -143,6 +157,7 @@ for f in os.listdir(s):
         : ["timeout", "70s", "python3", "-u", `${directory}/baseline.py`];
     // No shell evaluates user data. The guest receives no control-plane credentials.
     await exec(vm, python(`import subprocess,json,os\nd=${JSON.stringify(directory)}\np=subprocess.Popen(['flock','-w','75','/tmp/shipsafe-baseline-worker.lock']+${JSON.stringify(args)},stdin=open(d+'/input.json','rb'),stdout=open(d+'/events.jsonl','wb'),stderr=open(d+'/stderr.log','wb'),env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':'/tmp','LANG':'C.UTF-8'},start_new_session=True)\nopen(d+'/pid','w').write(str(p.pid))`));
+    prepared = true;
     await requireCurrentAuthorization();
     await emit("RUNNING", scan.mode === "lab" ? "Running the owned synthetic fixture on InstaBox. External networking is disabled." : securityMode ? "Running the registered security checks on the exact hostname with pinned public addresses and shared request limits." : "Running the exact-host baseline on InstaBox with pinned public addresses. No exploit templates or path discovery.");
     const deadline = Date.now() + 165_000;
@@ -253,6 +268,10 @@ if left.returncode or left.stdout.strip(): raise RuntimeError('Container cleanup
 if os.path.exists(d): shutil.rmtree(d)`), 30000); }
       catch { throw new CleanupError("Job cleanup could not be verified"); }
       await emit("CLEANUP", "Temporary job files and any lab container were removed; the shared VM remains available.");
+    } else {
+      try {
+        await exec(vm, python(`import os,shutil\nd=${JSON.stringify(directory)}\nif os.path.exists(d): shutil.rmtree(d)`), 15000);
+      } catch {}
     }
   }
 }

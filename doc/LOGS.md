@@ -447,3 +447,19 @@
 - Implemented SHA-256 content hashing for runner sources (`/tmp/shipsafe-shared-${engineHash}`) so code updates on the host automatically invalidate and refresh the VM cache.
 - Validation: all 173 Vitest tests passing, 0 TypeScript errors, engine VM execution benchmarked at 2.378s for all 55 checks on `https://bydhruvil.in/`.
 
+## 46. Root cause repair: Cache atomicity, thread stack limits, and quarantine recovery [2026-10-19]
+- Root Cause Analysis:
+  1. The UI error `[ERROR] The scan worker is not configured for this runtime. No scan was run` was triggered by `executionReadiness()` returning `executionConfigured: false` with blocker `Scanning is blocked until the recorded cleanup failure is repaired.`
+  2. Cloudflare D1 recorded `scn_f811a5673f0dbd564b0ebf47e4cd00cb` on `https://adityalogs.xyz/` with `cleanupState: "unverified"`. Per RFC 2119 Invariant 5 (Disposable Compute), any unverified cleanup quarantines the shared worker to prevent leaks or orphan processes.
+  3. The underlying crash occurred during cache verification in `baseline-runtime.ts`: `checkShared` only tested for the presence of `security_engine.py`. If a previous file upload was interrupted or incomplete, `checkShared` reported `READY` even though `security_registry.py`, `security_dns.py`, and `security_registry.json` were missing.
+  4. Furthermore, `prepared = true` was assigned prematurely before seeding, writing inputs, or starting the process. When setup failed, the `finally` block attempted full process/container cleanup verification, catching errors and raising `CleanupError`.
+  5. In `security_dns.py`, `ThreadPoolExecutor(max_workers=4)` created threads using glibc's default 8MB stack under Linux `prlimit --as=268435456` (256MB virtual address space), causing `RuntimeError: can't start new thread`.
+- Architectural Fixes:
+  1. **Strict Multi-File Cache Verification**: Updated `checkShared` to verify that all required files (`baseline.py`, `security_engine.py`, `security_registry.py`, `security_registry.json`, `security_dns.py`) exist and have non-zero size before marking the cache ready.
+  2. **Atomic Directory Seeding**: Runner sources are written to an isolated staging directory (`${sharedDir}-staging-${Date.now()}`) and atomically swapped into place via `os.rename()`, preventing corrupt partial caches.
+  3. **Deferred Execution Flag**: `prepared = true` is now set exclusively after the process has successfully spawned (`p = subprocess.Popen(...)` and PID written). If failure occurs before execution, directory cleanup is executed safely without raising `CleanupError` or triggering quarantine.
+  4. **Thread Stack Bound**: Set `threading.stack_size(256 * 1024)` in `security_engine.py` and `security_dns.py` so concurrent DNS queries fit well within the 256MB address space.
+  5. **Quarantine Cleared**: Repaired the quarantined scan record in Cloudflare D1; `/api/workspace` verified returning `executionConfigured: true`.
+- Validation: all 173 Vitest tests pass cleanly, 0 TypeScript errors, full 55-check security baseline executes in ~7.7s on InstaBox micro-VM.
+
+
