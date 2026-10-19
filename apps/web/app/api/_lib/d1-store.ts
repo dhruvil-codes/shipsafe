@@ -21,13 +21,17 @@ export class D1ScanStore {
     this.secret = secret;
   }
 
+  private cachedRead: { value: unknown; timestamp: number } | null = null;
+
   private async fetchState(): Promise<{ value: unknown; revision: number }> {
     const res = await fetch(`${this.workerUrl}/api/state`, {
       headers: { "X-VM-Token": this.secret },
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`Cloudflare D1 state read failed with status ${res.status}`);
-    return res.json() as Promise<{ value: unknown; revision: number }>;
+    const data = await res.json() as { value: unknown; revision: number };
+    this.cachedRead = { value: data.value, timestamp: Date.now() };
+    return data;
   }
 
   private async updateState(value: unknown, expectedRevision: number): Promise<{ ok: boolean; conflict?: boolean; currentRevision?: number }> {
@@ -42,6 +46,7 @@ export class D1ScanStore {
     });
     if (res.status === 409) return { ok: false, conflict: true };
     if (!res.ok) throw new Error(`Cloudflare D1 state update failed with status ${res.status}`);
+    this.cachedRead = { value, timestamp: Date.now() };
     return res.json() as Promise<{ ok: boolean }>;
   }
 
@@ -59,6 +64,10 @@ export class D1ScanStore {
   }
 
   private async read<T>(operation: (store: ApiScanStore) => T): Promise<T> {
+    const now = Date.now();
+    if (this.cachedRead && (now - this.cachedRead.timestamp) < 250) {
+      return operation(ApiScanStore.fromSnapshot(this.cachedRead.value));
+    }
     const { value } = await this.fetchState();
     return operation(ApiScanStore.fromSnapshot(value));
   }
@@ -167,6 +176,11 @@ export class D1ScanStore {
 
   async addEvent(event: Parameters<ApiScanStore["addEvent"]>[0]) {
     return this.transaction(store => store.addEvent(event));
+  }
+
+  async addEvents(events: Parameters<ApiScanStore["addEvent"]>[0][]) {
+    if (!events.length) return [];
+    return this.transaction(store => store.addEvents(events));
   }
 
   async addFinding(finding: Parameters<ApiScanStore["addFinding"]>[0]) {

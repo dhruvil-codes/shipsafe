@@ -439,6 +439,30 @@ export class ApiScanStore {
     return { ...record };
   }
 
+  addEvents(
+    inputs: (Omit<ScanEventRecord, "id" | "timestamp"> & {
+      id?: string;
+      timestamp?: string;
+    })[],
+  ): ScanEventRecord[] {
+    if (!inputs.length) return [];
+    this.initialize();
+    const created: ScanEventRecord[] = [];
+    for (const input of inputs) {
+      const record: ScanEventRecord = {
+        ...input,
+        id: input.id ?? newId("evt"),
+        timestamp: input.timestamp ?? new Date().toISOString(),
+      };
+      const list = this.events.get(input.scanId) ?? [];
+      list.push(record);
+      this.events.set(input.scanId, list);
+      created.push(record);
+    }
+    this.persist();
+    return created;
+  }
+
   listEvents(scanId: string): ScanEventRecord[] {
     this.initialize();
     // Keep scanner append order: VM and control-plane timestamps have different precision.

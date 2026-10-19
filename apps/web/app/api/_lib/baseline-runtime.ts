@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getLiveSandbox, type SandboxLike } from "@shipsafe/sandbox/live-runner";
 import { scoreUrlBaseline } from "../../../lib/baseline-score";
@@ -51,10 +52,23 @@ async function exec(vm: SandboxLike, command: string, timeoutMs = 20000): Promis
 }
 
 /** A trusted, bounded transport runs on the VM. Lab code runs without external networking. */
-export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (stage: string, message: string, metadata?: { checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }) => void | Promise<unknown>, connect = getLiveSandbox): Promise<BaselineReport> {
+export async function runBaseline(
+  scan: ScanRecord,
+  signal: AbortSignal,
+  emit: (stage: string, message: string, metadata?: { checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }) => void | Promise<unknown>,
+  connect = getLiveSandbox,
+  emitBatch?: (events: Array<{ stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }>) => void | Promise<unknown>,
+): Promise<BaselineReport> {
   if (!/^scn_[a-f0-9]{32}$/.test(scan.id)) throw new Error("Invalid scan identity");
   const securityMode = scan.mode === "standard" || scan.mode === "deep";
   const authorization = scan.mode === "deep" ? assertDeepAuthorization((await runtimeStore.getExecutionProject(scan.id))!, scan) : undefined;
+  const batchSender = emitBatch ?? (async (items) => {
+    for (const item of items) {
+      const metadata = { ...(item.checkId ? { checkId: item.checkId } : {}), ...(item.status ? { status: item.status } : {}), ...(item.timestamp ? { timestamp: item.timestamp } : {}) };
+      if (Object.keys(metadata).length) await emit(item.stage, item.message, metadata);
+      else await emit(item.stage, item.message);
+    }
+  });
   const requireCurrentAuthorization = async () => {
     if (process.env.DATABASE_URL) {
       const current = await runtimeStore.getScan(scan.id);
@@ -75,19 +89,51 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
   let offset = 0;
   let finished = false;
   try {
+    const engineHash = createHash("sha256")
+      .update(getSourceContent("baseline.py"))
+      .update(getSourceContent("security_engine.py"))
+      .update(getSourceContent("security_registry.py"))
+      .update(getSourceContent("security_registry.json"))
+      .update(getSourceContent("security_dns.py"))
+      .digest("hex").slice(0, 10);
+    const sharedDir = `/tmp/shipsafe-shared-${engineHash}`;
+
     await requireCurrentAuthorization();
-    const checkShared = await exec(vm, python(`import os,time,re,shutil\nfor name in os.listdir('/tmp'):\n if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue\n p='/tmp/'+name\n if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue\n try:\n  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()\n  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue\n except (FileNotFoundError,ProcessLookupError): pass\n shutil.rmtree(p)\nos.mkdir(${JSON.stringify(directory)},0o700)\nprint('READY' if os.path.exists('/tmp/shipsafe-shared-v3/security_engine.py') else 'NEED_SEED')`));
+    const checkShared = await exec(vm, python(`import os,time,re,shutil
+for name in os.listdir('/tmp'):
+ if not re.fullmatch(r'shipsafe-baseline-scn_[a-f0-9]{32}',name): continue
+ p='/tmp/'+name
+ if os.path.islink(p) or not os.path.isdir(p) or time.time()-os.stat(p).st_mtime<180: continue
+ try:
+  pid=int(open(p+'/pid').read());cmd=open('/proc/'+str(pid)+'/cmdline','rb').read()
+  if p.encode() in cmd or name.replace('shipsafe-baseline-','shipsafe-').encode() in cmd: continue
+ except (FileNotFoundError,ProcessLookupError): pass
+ shutil.rmtree(p)
+os.mkdir(${JSON.stringify(directory)},0o700)
+print('READY' if os.path.exists(${JSON.stringify(sharedDir + '/security_engine.py')}) else 'NEED_SEED')`));
     prepared = true;
     if (!checkShared.includes("READY")) {
-      await exec(vm, python(`import os\nos.makedirs('/tmp/shipsafe-shared-v3', exist_ok=True)`));
-      await vm.files.write(`/tmp/shipsafe-shared-v3/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
+      await exec(vm, python(`import os,shutil
+d=${JSON.stringify(sharedDir)}
+os.makedirs(d, exist_ok=True)
+for name in os.listdir('/tmp'):
+ if (name.startswith('shipsafe-shared-') or name.startswith('shipsafe-shared-v')) and name != os.path.basename(d):
+  try: shutil.rmtree('/tmp/' + name)
+  except: pass`));
+      await vm.files.write(`${sharedDir}/baseline.py`, getSourceContent("baseline.py").replaceAll("\r\n", "\n"));
       if (securityMode) {
         for (const file of ["security_engine.py", "security_registry.py", "security_registry.json", "security_dns.py"]) {
-          await vm.files.write(`/tmp/shipsafe-shared-v3/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
+          await vm.files.write(`${sharedDir}/${file}`, getSourceContent(file).replaceAll("\r\n", "\n"));
         }
       }
     }
-    await exec(vm, python(`import os,shutil\ns='/tmp/shipsafe-shared-v3'\nd=${JSON.stringify(directory)}\nfor f in os.listdir(s):\n src=os.path.join(s,f); dst=os.path.join(d,f)\n try: os.symlink(src,dst)\n except: shutil.copy2(src,dst)`));
+    await exec(vm, python(`import os,shutil
+s=${JSON.stringify(sharedDir)}
+d=${JSON.stringify(directory)}
+for f in os.listdir(s):
+ src=os.path.join(s,f); dst=os.path.join(d,f)
+ try: os.symlink(src,dst)
+ except: shutil.copy2(src,dst)`));
     await vm.files.write(`${directory}/input.json`, JSON.stringify({ mode: scan.mode ?? "website", url: scan.mode === "lab" ? "https://fixture.invalid/" : scan.url, ...(authorization ? { authorization: { hostname: authorization.hostname, expiresAt: authorization.expiresAt, classes: authorization.classes } } : {}) }));
     await requireCurrentAuthorization();
     const args = scan.mode === "lab"
@@ -108,6 +154,7 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
       if (offset > 1_000_000) throw new Error("Scanner output exceeded its limit");
       pending += chunk.data;
       const lines = pending.split("\n"); pending = lines.pop() ?? "";
+      const chunkEvents: Array<{ stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }> = [];
       for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) continue;
@@ -151,15 +198,22 @@ export async function runBaseline(scan: ScanRecord, signal: AbortSignal, emit: (
           } else {
             const event = z.object({ stage: z.string().max(80), message: z.string().max(16000), checkId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(), status: z.enum(["passed", "observation", "skipped"]).optional(), timestamp: z.string().datetime({ offset: true }).optional() }).safeParse(value);
             if (event.success) {
-              const metadata = { ...(event.data.checkId ? { checkId: event.data.checkId } : {}), ...(event.data.status ? { status: event.data.status } : {}), ...(event.data.timestamp ? { timestamp: event.data.timestamp } : {}) };
-              if (Object.keys(metadata).length) await emit(event.data.stage, event.data.message, metadata);
-              else await emit(event.data.stage, event.data.message);
+              chunkEvents.push({
+                stage: event.data.stage,
+                message: event.data.message,
+                ...(event.data.checkId ? { checkId: event.data.checkId } : {}),
+                ...(event.data.status ? { status: event.data.status } : {}),
+                ...(event.data.timestamp ? { timestamp: event.data.timestamp } : {}),
+              });
             }
           }
         }
       }
+      if (chunkEvents.length > 0) {
+        await batchSender(chunkEvents);
+      }
       if (finished) break;
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     if (!report) throw new Error("Scanner deadline reached without a validated report");
     return report;
@@ -209,6 +263,10 @@ async function executeClaimedScan(scan: ScanRecord, controller: AbortController)
     if (stage === "RUNNING" && !controller.signal.aborted && !TERMINAL_STATUSES.has((await runtimeStore.getScan(scan.id))!.status)) await runtimeStore.updateScan(scan.id, { status: "RUNNING" });
     return await runtimeStore.addEvent({ scanId: scan.id, stage, message, ...metadata });
   };
+  const emitBatch = async (events: Array<{ stage: string; message: string; checkId?: string; status?: "passed" | "observation" | "skipped"; timestamp?: string }>) => {
+    if (!events.length) return;
+    return await runtimeStore.addEvents(events.map(ev => ({ scanId: scan.id, ...ev })));
+  };
   try {
     if (scan.mode !== "lab") {
       const project = await runtimeStore.getExecutionProject(scan.id);
@@ -223,7 +281,7 @@ async function executeClaimedScan(scan: ScanRecord, controller: AbortController)
       assertDeepAuthorization(proof.project, scan);
     }
     await emit("PROVISIONING", "Connecting to the shared InstaBox VM. This job has exclusive use of the scan worker.");
-    const report = await runBaseline(scan, controller.signal, emit);
+    const report = await runBaseline(scan, controller.signal, emit, getLiveSandbox, emitBatch);
     if (controller.signal.aborted) return;
     if (scan.mode === "deep") assertDeepAuthorization((await runtimeStore.getExecutionProject(scan.id))!, scan);
     const checks = report.checks;
