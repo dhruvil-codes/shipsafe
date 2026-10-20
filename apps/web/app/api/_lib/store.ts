@@ -38,6 +38,7 @@ export interface ScanRecord {
   score?: number;
   coverage?: number;
   createdAt: string;
+  completedAt?: string;
   scopeAccepted?: boolean;
   reportManifest?: Record<string, unknown>;
   mode?: "standard" | "deep" | "website" | "lab";
@@ -88,7 +89,7 @@ export const snapshotSchema = z.object({
   version: z.literal(1),
   projects: z.array(z.object({ id: z.string(), name: z.string(), url: z.string(), environment: z.enum(["production", "staging", "development"]), securityAuthorization: SecurityAuthorizationSchema.optional(), securityAuthorizationRevision: z.number().int().nonnegative().optional(), verificationToken: z.string(), verifiedAt: z.string().nullable(), verificationExpiresAt: z.string().nullable(), createdAt: z.string() }).strict()),
   owners: z.array(z.tuple([z.string(), z.string()])),
-  scans: z.array(z.object({ id: z.string(), projectId: z.string(), projectName: z.string().optional(), url: z.string(), status: z.enum(["QUEUED", "PROVISIONING", "RUNNING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"]), score: z.number().finite().optional(), coverage: z.number().finite().optional(), createdAt: z.string(), scopeAccepted: z.boolean().optional(), reportManifest: z.record(z.unknown()).optional(), mode: z.enum(["standard", "deep", "website", "lab"]).optional(), authorizationId: z.string().optional() }).strict()),
+  scans: z.array(z.object({ id: z.string(), projectId: z.string(), projectName: z.string().optional(), url: z.string(), status: z.enum(["QUEUED", "PROVISIONING", "RUNNING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"]), score: z.number().finite().optional(), coverage: z.number().finite().optional(), createdAt: z.string(), completedAt: z.string().optional(), scopeAccepted: z.boolean().optional(), reportManifest: z.record(z.unknown()).optional(), mode: z.enum(["standard", "deep", "website", "lab"]).optional(), authorizationId: z.string().optional() }).strict()),
   findings: z.array(z.object({ id: z.string(), scanId: z.string(), severity: z.string(), title: z.string(), description: z.string(), evidence: z.string(), remediation: z.string(), cwe: z.string().optional(), classification: z.enum(["hardening", "vulnerability"]).optional(), checkId: z.string().optional() }).strict()),
   events: z.array(z.object({ id: z.string(), scanId: z.string(), stage: z.string(), message: z.string(), timestamp: z.string(), checkId: z.string().optional(), status: z.enum(["passed", "observation", "skipped"]).optional() }).strict()),
 }).strict();
@@ -392,7 +393,7 @@ export class ApiScanStore {
 
   updateScan(
     id: string,
-    patch: Partial<Pick<ScanRecord, "status" | "score" | "coverage" | "reportManifest">>,
+    patch: Partial<Pick<ScanRecord, "status" | "score" | "coverage" | "completedAt" | "reportManifest">>,
   ): ScanRecord | undefined {
     this.initialize();
     const existing = this.scans.get(id);

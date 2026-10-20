@@ -5,7 +5,7 @@ type AsyncMethods<T> = { [K in keyof T as T[K] extends (...args: never[]) => unk
 export type RuntimeStore = AsyncMethods<Omit<ApiScanStore, "reset" | "close" | "exportSnapshot">> & {
   storageKind(): "cloudflare-d1" | "local-file" | "memory";
   heartbeatExecution(id: string): Promise<boolean>;
-  completeExecution(id: string, patch: Partial<Pick<ScanRecord, "score" | "coverage" | "reportManifest">>, findings: Omit<FindingRecord, "id">[], message: string): Promise<boolean>;
+  completeExecution(id: string, patch: Partial<Pick<ScanRecord, "score" | "coverage" | "completedAt" | "reportManifest">>, findings: Omit<FindingRecord, "id">[], message: string): Promise<boolean>;
   reserveDispatch(id: string): Promise<string | undefined>;
   recordDispatch(id: string, token: string, runId: string): Promise<void>;
   releaseDispatch(id: string, token: string): Promise<void>;

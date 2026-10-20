@@ -115,12 +115,13 @@ export class D1ScanStore {
     });
   }
 
-  async completeExecution(id: string, patch: Partial<Pick<ScanRecord, "score" | "coverage" | "reportManifest">>, findings: Omit<FindingRecord, "id">[], message: string) {
+  async completeExecution(id: string, patch: Partial<Pick<ScanRecord, "score" | "coverage" | "completedAt" | "reportManifest">>, findings: Omit<FindingRecord, "id">[], message: string) {
     return this.transaction(store => {
       const current = store.getScan(id);
       if (!current || TERMINAL_STATUSES.has(current.status)) return false;
       for (const finding of findings) store.addFinding(finding);
-      store.updateScan(id, { ...patch, status: "COMPLETED" });
+      const completedAt = patch.completedAt ?? new Date().toISOString();
+      store.updateScan(id, { ...patch, completedAt, status: "COMPLETED" });
       store.addEvent({ scanId: id, stage: "COMPLETED", message });
       return true;
     });

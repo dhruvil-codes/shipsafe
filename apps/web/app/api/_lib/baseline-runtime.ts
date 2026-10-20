@@ -308,6 +308,7 @@ async function executeClaimedScan(scan: ScanRecord, controller: AbortController)
     const posture = scan.mode === "standard" || scan.mode === "deep" ? securityPosture(report.manifest.unifiedResults, JSON.parse(getSourceContent("security_registry.json")), scan.mode) : null;
     const calculatedBaseline = (!scopeLimited && report.manifest.profile === "bounded-http-hardening") ? scoreUrlBaseline(checks) : null;
     const completionPatch = {
+      completedAt: new Date().toISOString(),
       reportManifest: { ...report.manifest, checks, cleanupState: "verified" },
       ...(scopeLimited ? {} : {
         score: posture?.value ?? calculatedBaseline?.value,
