@@ -5,14 +5,14 @@ An evidence-first, open-source web application security testing engine. It runs 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15.5-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-fbf0df.svg?style=flat-square&logo=bun)](https://bun.sh/)
-[![Tests](https://img.shields.io/badge/Vitest-152%20Passed-success.svg?style=flat-square&logo=vitest)](https://vitest.dev/)
-[![Python](https://img.shields.io/badge/Python-3.12%2B%20(49%20Passed)-blue.svg?style=flat-square&logo=python)](https://python.org/)
+[![Tests](https://img.shields.io/badge/Vitest-173%20Passed-success.svg?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Sandbox](https://img.shields.io/badge/InstaBox-Micro--VM-orange.svg?style=flat-square)](https://instabox.sh/)
+[![Built with](https://img.shields.io/badge/Built%20with-Droid%20by%20Factory%20AI-blueviolet.svg?style=flat-square)](https://factory.ai/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
 ![ShipSafe scanner hero](assets/hero-scanner.png)
 
-A local-first and cloud-ready security scanner for modern web applications. Enter a public URL to run 40+ deterministic baseline checks across TLS/SSL configurations, HTTP security headers, cookie flags, DNS CAA/SPF/DMARC records, mixed content, and public metadata leakage. Completed scans stream live telemetry events to an interactive terminal, calculate an un-inflated evidence score, and offer an expandable deep scan workflow with cryptographic DNS ownership verification and isolated containerized engines (Nuclei & OWASP ZAP).
+A local-first and cloud-ready security scanner for modern web applications. Enter a public URL to run 55 deterministic baseline checks across TLS/SSL configurations, HTTP security headers, cookie flags, DNS CAA/SPF/DMARC records, mixed content, and public metadata leakage. Completed scans stream live telemetry events to an interactive terminal, calculate an un-inflated evidence score, and offer an expandable deep scan workflow with cryptographic DNS ownership verification and isolated containerized engines (Nuclei & OWASP ZAP).
 
 ![ShipSafe assessment report](assets/assessment-score.png)
 

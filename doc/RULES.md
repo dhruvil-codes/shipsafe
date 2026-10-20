@@ -32,7 +32,7 @@
 - Any manual overrides of safety checks must be recorded with an explicit reason.
 
 ## 6. Context Awareness & Skill Discovery
-- **Comprehensive File Context**: Always reference and utilize all relevant project files (such as `doc/PRD.md`, `doc/RULES.md`, `doc/LOGS.md`, `doc/INSTABOX.md`, contracts, schemas, and configurations) before starting or modifying code. Never guess or hallucinate requirements when specifications exist in the repository.
+- **Comprehensive File Context**: Always reference and utilize all relevant project files (such as `doc/PRD.md`, `doc/RULES.md`, `doc/INSTABOX.md`, contracts, schemas, and configurations) before starting or modifying code. Never guess or hallucinate requirements when specifications exist in the repository.
 - **Compute Infrastructure Docs**: For all cloud VM and sandbox interactions, adhere to [`doc/INSTABOX.md`](file:///d:/shipsafe/doc/INSTABOX.md) and the official documentation at [https://instabox.sh/docs](https://instabox.sh/docs).
 - **Agent Skill Utilization**: Actively check and use relevant skills available under `.agents/skills/` (e.g., `design-taste-frontend`, `ui-ux-pro-max`, `improve-codebase-architecture`).
 - **Dynamic Skill Acquisition (`find-skills`)**: If a task requires a specific capability, domain knowledge, or workflow and no matching local skill is found, use the `find-skills` skill to search, identify, and install the appropriate skill.

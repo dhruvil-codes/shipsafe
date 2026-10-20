@@ -9,10 +9,8 @@ Before planning, implementing, debugging, or modifying any code or configuration
 - **Inspect Project Documentation First**:
   - [`doc/PRD.md`](file:///d:/shipsafe/doc/PRD.md): Product requirements, core invariants (RFC 2119), architecture, data contracts, and milestones.
   - [`doc/RULES.md`](file:///d:/shipsafe/doc/RULES.md): Coding standards, git conventions, safety guidelines, and review protocols.
-  - [`doc/LOGS.md`](file:///d:/shipsafe/doc/LOGS.md): Activity history and Architecture Decision Records (ADRs).
   - [`doc/INSTABOX.md`](file:///d:/shipsafe/doc/INSTABOX.md): Complete InstaBox SDK, API, CLI, and resource limits reference from [https://instabox.sh/docs](https://instabox.sh/docs).
 - **Consult Code & Schemas**: Always inspect relevant schema files, contracts, types, and existing tests before writing new logic. Never invent APIs or assume specifications without checking existing files.
-- **Record Progress**: After completing significant tasks or architectural changes, update [`doc/LOGS.md`](file:///d:/shipsafe/doc/LOGS.md).
 
 ---
 
