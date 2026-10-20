@@ -462,4 +462,19 @@
   5. **Quarantine Cleared**: Repaired the quarantined scan record in Cloudflare D1; `/api/workspace` verified returning `executionConfigured: true`.
 - Validation: all 173 Vitest tests pass cleanly, 0 TypeScript errors, full 55-check security baseline executes in ~7.7s on InstaBox micro-VM.
 
+## 47. Accurate duration reporting, test suite optimization, and production shipment [2026-10-20]
+- Root Cause Analysis for Duration Discrepancy:
+  1. In `InlineScan.tsx`, the frontend calculated `completedDuration` using `(report.scan.completedAt - report.scan.createdAt)`.
+  2. However, `completedAt` was previously omitted from `ScanRecord`, `snapshotSchema.scans`, and the D1 completion patch. As a result, `completedDuration` fell back to `elapsedSeconds` (an in-browser stopwatch that kept accumulating time while the client waited or polled).
+  3. While the actual security engine execution on InstaBox finished in seconds, the UI appeared to report 55s–92s due to lack of an authoritative backend timestamp.
+- Architectural Fixes:
+  1. **Persisted `completedAt`**: Added `completedAt?: string` to `ScanRecord` and `snapshotSchema.scans` in `store.ts`.
+  2. **D1 & Local Store Completion Patch**: Updated `completeExecution` in `d1-store.ts` and `baseline-runtime.ts` to stamp and persist `completedAt: new Date().toISOString()`.
+  3. **Runtime Synchronization**: Updated `RuntimeStore` interface and `d1-store.ts` so `completedAt` is recorded immediately upon terminal completion.
+- Validation:
+  1. **All Tests Passing**: Full monorepo test suite (`bun run test`) passed with 173/173 tests passing in ~12.5 seconds.
+  2. **Zero Type Errors**: `bun run typecheck` across all packages (`@shipsafe/shared`, `@shipsafe/db`, `@shipsafe/orchestration`, `@shipsafe/scoring`, `@shipsafe/sandbox`, `@shipsafe/adapters`, `@shipsafe/web`) passed with 0 errors.
+  3. **Live Production Browser Verification**: Automated browser test on `https://shipsafe.runs-on.dev/` assessed `https://adityalogs.xyz/`, confirmed 100% check coverage, 14 findings, score 43/100, and verified the UI accurately locks the final duration (`COMPLETED · 33.3s`).
+
+
 
